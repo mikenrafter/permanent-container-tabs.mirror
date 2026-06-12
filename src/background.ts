@@ -4,14 +4,7 @@ import { MenuHandlerImpl } from './background/menuHandler'
 import { TabReopenerImpl } from './background/tabReopener'
 import type { BrowserApi } from './models'
 
-declare global {
-	var browser: BrowserApi
-	interface Window {
-		browser: BrowserApi
-	}
-}
-
-const browserApi = globalThis.browser
+const browserApi = (globalThis as unknown as { browser: BrowserApi }).browser
 
 const tcLayer = new TcLayerImpl({ browserApi, logger: console })
 const tabReopener = new TabReopenerImpl({ browserApi, tcLayer })

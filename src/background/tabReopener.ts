@@ -44,14 +44,14 @@ export class TabReopenerImpl implements TabReopener {
 			}
 		} else if (cookieStoreId === NO_CONTAINER) {
 			// Open in default container (no cookieStoreId)
-			const newTab = await this.browserApi.tabs.create({ url, index })
+			const newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), index })
 			newTabId = newTab.id
 			if (tab.id != null) {
 				await this.browserApi.tabs.remove(tab.id)
 			}
 		} else {
 			// Open in a specific permanent container
-			const newTab = await this.browserApi.tabs.create({ url, cookieStoreId, index })
+			const newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), cookieStoreId, index })
 			newTabId = newTab.id
 			if (tab.id != null) {
 				await this.browserApi.tabs.remove(tab.id)

@@ -46,5 +46,5 @@ export async function loadSettings(storage: StorageLocalApi): Promise<PctSetting
 }
 
 export async function saveSettings(storage: StorageLocalApi, settings: PctSettings): Promise<void> {
-	await storage.set(settings)
+	await storage.set(settings as unknown as Record<string, unknown>)
 }

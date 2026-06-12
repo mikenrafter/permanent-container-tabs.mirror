@@ -1,11 +1,7 @@
-declare const browser: {
-	storage: {
-		local: {
-			get(keys?: null | string | string[]): Promise<Record<string, unknown>>
-			set(items: Record<string, unknown>): Promise<void>
-		}
-	}
+type OptionsBrowser = {
+	storage: { local: { get(k: null): Promise<Record<string, unknown>>; set(i: Record<string, unknown>): Promise<void> } }
 }
+const optBrowser = (): OptionsBrowser => (globalThis as unknown as { browser: OptionsBrowser }).browser
 
 interface PctSettings {
 	showOpenInNewTab: boolean
@@ -25,7 +21,7 @@ function getDefaultSettings(): PctSettings {
 
 async function loadAndRenderSettings(): Promise<void> {
 	const defaults = getDefaultSettings()
-	const stored = await browser.storage.local.get(null)
+	const stored = await optBrowser().storage.local.get(null)
 
 	const settings: PctSettings = {
 		showOpenInNewTab: typeof stored['showOpenInNewTab'] === 'boolean' ? stored['showOpenInNewTab'] : defaults.showOpenInNewTab,
@@ -51,7 +47,7 @@ async function saveSettings(): Promise<void> {
 	const s3 = document.getElementById('suppressMacMenuItem') as HTMLInputElement | null
 	const s4 = document.getElementById('suppressIsolationInfo') as HTMLInputElement | null
 
-	await browser.storage.local.set({
+	await optBrowser().storage.local.set({
 		showOpenInNewTab: s1?.checked ?? true,
 		showReopenInContainer: s2?.checked ?? true,
 		suppressMacMenuItem: s3?.checked ?? false,

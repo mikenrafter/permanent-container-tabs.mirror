@@ -3,31 +3,17 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock browser API globally before importing the module
 const mockStorageSet = vi.fn().mockResolvedValue(undefined)
 const mockTabsRemove = vi.fn().mockResolvedValue(undefined)
-const mockTabsQuery = vi.fn().mockResolvedValue([{ id: 42, url: 'moz-extension://test/info/isolation-info.html', index: 0 }])
+const mockTabsQuery = vi.fn().mockResolvedValue([
+	{ id: 42, url: 'moz-extension://test/info/isolation-info.html' },
+])
 
 const mockBrowser = {
-	storage: {
-		local: {
-			get: vi.fn().mockResolvedValue({}),
-			set: mockStorageSet,
-		},
-	},
-	tabs: {
-		query: mockTabsQuery,
-		remove: mockTabsRemove,
-	},
+	storage: { local: { get: vi.fn().mockResolvedValue({}), set: mockStorageSet } },
+	tabs: { query: mockTabsQuery, remove: mockTabsRemove },
 }
 
-declare global {
-	interface Window {
-		browser: typeof mockBrowser
-	}
-}
-
-// Set up the browser global before module import
 Object.defineProperty(globalThis, 'browser', {
 	value: mockBrowser,
 	writable: true,
@@ -37,15 +23,15 @@ Object.defineProperty(globalThis, 'browser', {
 describe('isolation info page handlers', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		mockTabsQuery.mockResolvedValue([{ id: 42, url: 'moz-extension://test/info/isolation-info.html', index: 0 }])
+		mockTabsQuery.mockResolvedValue([{ id: 42, url: 'moz-extension://test/info/isolation-info.html' }])
 		mockStorageSet.mockResolvedValue(undefined)
 		mockTabsRemove.mockResolvedValue(undefined)
 
-		// Set up a minimal DOM
 		document.body.innerHTML = `
 			<button id="ok-btn">OK</button>
 			<button id="never-show-btn">Never show again</button>
 		`
+		vi.resetModules()
 	})
 
 	afterEach(() => {
@@ -58,8 +44,8 @@ describe('isolation info page handlers', () => {
 
 		const okBtn = document.getElementById('ok-btn')
 		okBtn?.click()
-		await Promise.resolve()
-		await Promise.resolve()
+		await new Promise(r => setTimeout(r, 0))
+		await new Promise(r => setTimeout(r, 0))
 
 		expect(mockTabsRemove).toHaveBeenCalledWith(42)
 	})
@@ -70,8 +56,8 @@ describe('isolation info page handlers', () => {
 
 		const neverBtn = document.getElementById('never-show-btn')
 		neverBtn?.click()
-		await Promise.resolve()
-		await Promise.resolve()
+		await new Promise(r => setTimeout(r, 0))
+		await new Promise(r => setTimeout(r, 0))
 
 		expect(mockStorageSet).toHaveBeenCalledWith({ suppressIsolationInfo: true })
 		expect(mockTabsRemove).toHaveBeenCalledWith(42)

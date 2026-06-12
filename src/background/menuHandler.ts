@@ -120,11 +120,11 @@ export class MenuHandlerImpl implements MenuHandler {
 			const cookieStoreId = itemId.slice(`${MENU_OPEN_NEW}-`.length)
 			if (cookieStoreId === NO_CONTAINER) {
 				// Open in default container — no cookieStoreId
-				await this.browserApi.tabs.create({ url: tab.url, index: tab.index + 1 })
+				await this.browserApi.tabs.create({ ...(tab.url !== undefined ? { url: tab.url } : {}), index: tab.index + 1 })
 			} else if (cookieStoreId === TEMP_CONTAINER_SENTINEL) {
 				await this.tcLayer.createTempContainer(tab.url ?? '', tab.index + 1, tab.windowId ?? 0)
 			} else {
-				await this.browserApi.tabs.create({ url: tab.url, cookieStoreId, index: tab.index + 1 })
+				await this.browserApi.tabs.create({ ...(tab.url !== undefined ? { url: tab.url } : {}), cookieStoreId, index: tab.index + 1 })
 			}
 		} else if (itemId.startsWith(`${MENU_REOPEN}-`)) {
 			const cookieStoreId = itemId.slice(`${MENU_REOPEN}-`.length)

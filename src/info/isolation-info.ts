@@ -1,24 +1,18 @@
-declare const browser: {
-	storage: {
-		local: {
-			get(keys?: null | string | string[]): Promise<Record<string, unknown>>
-			set(items: Record<string, unknown>): Promise<void>
-		}
-	}
+type PageBrowser = {
+	storage: { local: { set(items: Record<string, unknown>): Promise<void> } }
 	tabs: {
-		query(queryInfo: { active?: boolean; currentWindow?: boolean; url?: string }): Promise<Array<{ id?: number; url?: string }>>
+		query(q: { currentWindow?: boolean }): Promise<Array<{ id?: number; url?: string }>>
 		remove(tabId: number): Promise<void>
 	}
 }
 
+const pageBrowser = (): PageBrowser => (globalThis as unknown as { browser: PageBrowser }).browser
+
 async function closeInfoTab(): Promise<void> {
-	const tabs = await browser.tabs.query({ currentWindow: true })
-	const currentUrl = window.location.href
-	const thisTab = tabs.find(t => t.url && currentUrl.includes('isolation-info.html'))
-	// Fallback: find any isolation-info tab
-	const tab = thisTab ?? tabs.find(t => t.url?.includes('isolation-info'))
-	if (tab?.id != null) {
-		await browser.tabs.remove(tab.id)
+	const tabs = await pageBrowser().tabs.query({ currentWindow: true })
+	const thisTab = tabs.find(t => t.url?.includes('isolation-info'))
+	if (thisTab?.id != null) {
+		await pageBrowser().tabs.remove(thisTab.id)
 	}
 }
 
@@ -34,7 +28,7 @@ export function initIsolationInfoPage(): void {
 
 	if (neverBtn) {
 		neverBtn.addEventListener('click', () => {
-			browser.storage.local
+			pageBrowser().storage.local
 				.set({ suppressIsolationInfo: true })
 				.then(() => closeInfoTab())
 				.catch(console.error)
