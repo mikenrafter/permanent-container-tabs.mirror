@@ -1,0 +1,4 @@
+<system-reminder>Message sent at Fri 2026-06-12 23:21:03 UTC.</system-reminder>
+The "prefer" behavior simply uses one behavior and ignores the other. Instead it should use one behavior and put the other in a submenu at the top of the main menu... That is tab menu > PCT > [alt behavior > [no container, TC container, separator, ...permanent containers], no container, TC container, separator, ...permanent containers]
+
+The current behavioral messages for the menu items are correct. Continue to use them at the top level and at the sub-menu level. Not also the added separator. Add TDD tests first, then verify they fail, and fix the behavior.
