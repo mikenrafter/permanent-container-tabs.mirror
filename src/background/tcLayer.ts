@@ -73,10 +73,9 @@ export class TcLayerImpl implements TcLayer {
 	async createTempContainer(url: string, index: number, windowId: number): Promise<Tab> {
 		if (!this._extensionId) throw new Error('No Temporary Containers extension detected')
 		const tab = await this.browserApi.runtime.sendMessage(this._extensionId, {
-			method: 'createTempContainer',
+			method: 'createTabInTempContainer',
 			url,
-			index,
-			windowId,
+			active: true,
 		})
 		return tab as Tab
 	}

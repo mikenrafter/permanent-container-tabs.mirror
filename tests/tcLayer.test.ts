@@ -178,7 +178,7 @@ describe('TcLayerImpl.createTempContainer', () => {
 		browserApi = makeBrowserApi()
 	})
 
-	it('sends createTempContainer message with url, index, windowId', async () => {
+	it('sends createTabInTempContainer message with url and active:true', async () => {
 		const extensionId = '{c607c8df-14a7-4f28-894f-29e8722976af}'
 		;(browserApi.management.get as ReturnType<typeof vi.fn>).mockResolvedValue({
 			id: extensionId,
@@ -194,10 +194,9 @@ describe('TcLayerImpl.createTempContainer', () => {
 		const result = await layer.createTempContainer('https://example.com', 3, 1)
 
 		expect(browserApi.runtime.sendMessage).toHaveBeenCalledWith(extensionId, {
-			method: 'createTempContainer',
+			method: 'createTabInTempContainer',
 			url: 'https://example.com',
-			index: 3,
-			windowId: 1,
+			active: true,
 		})
 		expect(result).toEqual(createdTab)
 	})

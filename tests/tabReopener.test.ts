@@ -18,6 +18,7 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue({ id: 99, index: 1 }),
 			remove: vi.fn().mockResolvedValue(undefined),
 			get: vi.fn().mockResolvedValue({ id: 99, index: 1, cookieStoreId: 'firefox-container-1' }),
+			move: vi.fn().mockResolvedValue({ id: 99, index: 3 }),
 			query: vi.fn().mockResolvedValue([]),
 			update: vi.fn().mockResolvedValue({ id: 99, index: 1 }),
 			onUpdated: { addListener: vi.fn() },
@@ -120,6 +121,48 @@ describe('TabReopenerImpl.reopen — basic open/close', () => {
 		await promise
 
 		expect(browserApi.tabs.remove).toHaveBeenCalledWith(10)
+	})
+
+	it('reopen with TEMP_CONTAINER_SENTINEL moves TC tab to original index+1', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const reopener = new TabReopenerImpl({ browserApi, tcLayer })
+
+		const promise = reopener.reopen(sourceTab, TEMP_CONTAINER_SENTINEL)
+		await vi.runAllTimersAsync()
+		await promise
+
+		expect(browserApi.tabs.move).toHaveBeenCalledWith(50, { index: 3 })
+	})
+
+	it('reopen with TEMP_CONTAINER_SENTINEL calls tabs.move before tabs.remove', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const reopener = new TabReopenerImpl({ browserApi, tcLayer })
+		const callOrder: string[] = []
+		;(browserApi.tabs.move as ReturnType<typeof vi.fn>).mockImplementation(async () => { callOrder.push('move'); return { id: 50, index: 3 } })
+		;(browserApi.tabs.remove as ReturnType<typeof vi.fn>).mockImplementation(async () => { callOrder.push('remove') })
+
+		const promise = reopener.reopen(sourceTab, TEMP_CONTAINER_SENTINEL)
+		await vi.runAllTimersAsync()
+		await promise
+
+		expect(callOrder).toEqual(['move', 'remove'])
+	})
+
+	it('reopen with TEMP_CONTAINER_SENTINEL moves immediately once TC cookieStoreId confirmed', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 50, index: 5, cookieStoreId: 'firefox-tmp-1' })
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockImplementation(
+			async (id: string) => id.startsWith('firefox-tmp')
+		)
+		const reopener = new TabReopenerImpl({ browserApi, tcLayer })
+
+		const promise = reopener.reopen(sourceTab, TEMP_CONTAINER_SENTINEL)
+		await vi.runAllTimersAsync()
+		await promise
+
+		// Confirmed on first poll — tabs.get called exactly once
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(1)
+		expect(browserApi.tabs.move).toHaveBeenCalledWith(50, { index: 3 })
 	})
 
 	it('reopen with a permanent cookieStoreId creates tab with that cookieStoreId and active:true', async () => {
@@ -289,7 +332,10 @@ describe('TabReopenerImpl.reopen — TC intercept check', () => {
 		await vi.runAllTimersAsync()
 		await promise
 
-		expect(browserApi.tabs.get).not.toHaveBeenCalled()
+		const infoCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls.find(
+			(args: unknown[]) => (args[0] as { url?: string }).url?.includes('isolation-info.html')
+		)
+		expect(infoCall).toBeUndefined()
 	})
 
 	it('initial check fires at 500ms, not before', async () => {

@@ -30,7 +30,34 @@ export class TabReopenerImpl implements TabReopener {
 
 		if (cookieStoreId === TEMP_CONTAINER_SENTINEL) {
 			newTab = await this.tcLayer.createTempContainer(url ?? '', index, windowId ?? 0)
-		} else if (cookieStoreId === NO_CONTAINER) {
+
+			// Poll until TC has assigned the temp container cookieStoreId, then move into place
+			if (newTab.id != null) {
+				console.log(`[PCT] reopen: TEMP_CONTAINER_SENTINEL — polling for TC cookieStoreId on tab ${newTab.id}`)
+				for (let i = 0; i < 10; i++) {
+					try {
+						const current = await this.browserApi.tabs.get(newTab.id)
+						if (current.cookieStoreId && await this.tcLayer.isTempContainer(current.cookieStoreId)) {
+							console.log(`[PCT] reopen: TC tab confirmed on poll ${i + 1}, cookieStoreId=${current.cookieStoreId}`)
+							break
+						}
+					} catch {
+						console.log(`[PCT] reopen: tabs.get threw on poll ${i + 1}, proceeding`)
+						break
+					}
+					await new Promise<void>(resolve => setTimeout(resolve, 200))
+				}
+				console.log(`[PCT] reopen: moving TC tab ${newTab.id} to index ${index}`)
+				await this.browserApi.tabs.move(newTab.id, { index })
+			}
+
+			if (tab.id != null) {
+				await this.browserApi.tabs.remove(tab.id)
+			}
+			return
+		}
+
+		if (cookieStoreId === NO_CONTAINER) {
 			newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), index, active: true })
 		} else {
 			newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), cookieStoreId, index, active: true })
@@ -43,11 +70,7 @@ export class TabReopenerImpl implements TabReopener {
 			await this.browserApi.tabs.remove(tab.id)
 		}
 
-		// TC intercept check — only when TC is present and we didn't deliberately open in TC
-		if (cookieStoreId === TEMP_CONTAINER_SENTINEL) {
-			console.log('[PCT] reopen: skipping TC intercept check — target was TEMP_CONTAINER_SENTINEL')
-			return
-		}
+		// TC intercept check — only when TC is present
 		if (!this.tcLayer.isPresent()) {
 			console.log('[PCT] reopen: skipping TC intercept check — TC not present')
 			return
@@ -106,7 +129,7 @@ export class TabReopenerImpl implements TabReopener {
 				if (!settings.suppressIsolationInfo) {
 					const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
 					console.log('[PCT] reopen: opening isolation info page:', infoUrl)
-					await this.browserApi.tabs.create({ url: infoUrl, index: newTab.index + 1, active: true })
+					await this.browserApi.tabs.create({ url: infoUrl, index: newTab.index, active: true })
 				}
 				return
 			}
