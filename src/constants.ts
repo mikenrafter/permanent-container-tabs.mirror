@@ -17,5 +17,3 @@ export const TEMP_CONTAINERS_EXTENSION_IDS = [
 export const MENU_OPEN_NEW = 'pct-open-new'
 export const MENU_REOPEN = 'pct-reopen'
 
-/** Suffix added to menu labels when S3 (suppressMacMenuItem) is OFF */
-export const PCT_SUFFIX = ' (PCT)'

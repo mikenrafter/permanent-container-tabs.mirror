@@ -5,7 +5,6 @@ import {
 	MENU_OPEN_NEW,
 	MENU_REOPEN,
 	NO_CONTAINER,
-	PCT_SUFFIX,
 	TEMP_CONTAINER_SENTINEL,
 } from '../constants'
 
@@ -44,16 +43,10 @@ export class MenuHandlerImpl implements MenuHandler {
 
 		await this.browserApi.menus.removeAll()
 
-		// NOTE: overrideContext MUST NOT be called here. It is called synchronously in
-		// pctRuntime's onShown handler before any awaits. Calling it again after removeAll()
-		// would fire when this extension has zero items, causing an empty override menu.
-
-		const suffix = settings.suppressMacMenuItem ? '' : PCT_SUFFIX
-
 		if (settings.prioritizeReopen) {
-			await this.buildContainerSubmenu(MENU_REOPEN, `Reopen Tab in Container${suffix}`, tab, permanentContainers)
+			await this.buildContainerSubmenu(MENU_REOPEN, 'Reopen Tab in Container', tab, permanentContainers)
 		} else {
-			await this.buildContainerSubmenu(MENU_OPEN_NEW, `Open in New Container Tab${suffix}`, tab, permanentContainers)
+			await this.buildContainerSubmenu(MENU_OPEN_NEW, 'Open in New Container Tab', tab, permanentContainers)
 		}
 
 		await this.browserApi.menus.refresh()
@@ -84,15 +77,18 @@ export class MenuHandlerImpl implements MenuHandler {
 			contexts: ['tab'],
 		})
 
-		// Temporary Container — bundled SVG icon (theme-agnostic gray)
+		// Temporary Container — radio if current tab is in TC, normal+icon otherwise
 		if (this.tcLayer.isPresent()) {
+			const tabIsInTc = !!tab.cookieStoreId && await this.tcLayer.isTempContainer(tab.cookieStoreId)
 			await this.browserApi.menus.create({
 				id: `${parentId}-${TEMP_CONTAINER_SENTINEL}`,
 				parentId,
 				title: 'Temporary Container',
-				type: 'normal',
+				type: tabIsInTc ? 'radio' : 'normal',
+				checked: tabIsInTc,
+				enabled: !tabIsInTc,
 				contexts: ['tab'],
-				icons: { 16: 'icons/temp-container.svg' },
+				...(tabIsInTc ? {} : { icons: { 16: 'icons/temp-container.svg' } }),
 			})
 		}
 

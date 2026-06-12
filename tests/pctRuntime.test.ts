@@ -10,7 +10,6 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue(undefined),
 			removeAll: vi.fn().mockResolvedValue(undefined),
 			refresh: vi.fn().mockResolvedValue(undefined),
-			overrideContext: vi.fn(),
 			onShown: { addListener: vi.fn() },
 			onHidden: { addListener: vi.fn() },
 			onClicked: { addListener: vi.fn() },
@@ -119,47 +118,6 @@ describe('PctRuntimeImpl.initialize', () => {
 		expect(browserApi.tabs.onUpdated.addListener).toHaveBeenCalled()
 	})
 
-	it('registers storage.onChanged listener to keep settings cache live', async () => {
-		const tcLayer = makeTcLayer()
-		const menuHandler = makeMenuHandler()
-		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
-		await runtime.initialize()
-
-		expect(browserApi.storage.onChanged.addListener).toHaveBeenCalled()
-	})
-
-	it('calls overrideContext synchronously in onShown when suppressMacMenuItem is cached', async () => {
-		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ prioritizeReopen: false, suppressMacMenuItem: true })
-		const tcLayer = makeTcLayer()
-		const menuHandler = makeMenuHandler()
-		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
-		await runtime.initialize()
-
-		const onShownCalls = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls
-		const listener = onShownCalls[0]?.[0] as (info: { contexts: string[] }, tab: Tab) => void
-		const tab: Tab = { id: 1, url: 'https://example.com', index: 0 }
-
-		// Call synchronously — overrideContext must be called in the same turn
-		listener({ contexts: ['tab'] }, tab)
-
-		expect(browserApi.menus.overrideContext).toHaveBeenCalledWith({ showDefaults: false })
-	})
-
-	it('does NOT call overrideContext when suppressMacMenuItem is false', async () => {
-		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ prioritizeReopen: false, suppressMacMenuItem: false })
-		const tcLayer = makeTcLayer()
-		const menuHandler = makeMenuHandler()
-		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
-		await runtime.initialize()
-
-		const onShownCalls = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls
-		const listener = onShownCalls[0]?.[0] as (info: { contexts: string[] }, tab: Tab) => void
-		const tab: Tab = { id: 1, url: 'https://example.com', index: 0 }
-
-		listener({ contexts: ['tab'] }, tab)
-
-		expect(browserApi.menus.overrideContext).not.toHaveBeenCalled()
-	})
 })
 
 describe('PctRuntimeImpl tabs.onUpdated isolation info', () => {

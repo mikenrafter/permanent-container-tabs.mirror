@@ -1,8 +1,7 @@
 import type { BrowserApi, ContextualIdentity, Tab, TabChangeInfo } from '../models'
 import type { TcLayer } from './tcLayer'
 import type { MenuHandler } from './menuHandler'
-import { getDefaultSettings, loadSettings } from '../preferences/settings'
-import type { PctSettings } from '../models'
+import { loadSettings } from '../preferences/settings'
 
 export interface PctRuntimeDeps {
 	readonly browserApi: BrowserApi
@@ -20,7 +19,6 @@ export class PctRuntimeImpl implements PctRuntime {
 	private readonly tcLayer: TcLayer
 	private readonly menuHandler: MenuHandler
 	private readonly pctOpenedTabIds: Set<number> = new Set()
-	private cachedSettings: PctSettings = getDefaultSettings()
 
 	constructor(deps: PctRuntimeDeps) {
 		this.browserApi = deps.browserApi
@@ -36,30 +34,8 @@ export class PctRuntimeImpl implements PctRuntime {
 		await this.tcLayer.initialize()
 		await this.menuHandler.initialize()
 
-		// Warm the settings cache — overrideContext must be called synchronously
-		// in onShown before any await, so we can't load settings on demand there.
-		this.cachedSettings = await loadSettings(this.browserApi.storage.local)
-
-		// Keep cache live so settings changes take effect immediately.
-		this.browserApi.storage.onChanged.addListener((changes) => {
-			for (const [key, change] of Object.entries(changes)) {
-				if (key in this.cachedSettings && typeof change.newValue === 'boolean') {
-					(this.cachedSettings as unknown as Record<string, unknown>)[key] = change.newValue
-				}
-			}
-		})
-
-		// menus.onShown — the listener itself must be synchronous so that
-		// overrideContext() is called in the same event-dispatch turn.
 		this.browserApi.menus.onShown.addListener((info, tab) => {
 			if (!info.contexts.includes('tab')) return
-
-			// SYNCHRONOUS: Firefox ignores overrideContext called after an await.
-			if (this.cachedSettings.suppressMacMenuItem) {
-				this.browserApi.menus.overrideContext({ showDefaults: false })
-			}
-
-			// Async menu building happens after the sync guard.
 			this.handleMenuShown(tab).catch(console.error)
 		})
 

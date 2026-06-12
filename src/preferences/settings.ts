@@ -3,7 +3,6 @@ import type { PctSettings, StorageLocalApi } from '../models'
 export function getDefaultSettings(): PctSettings {
 	return {
 		prioritizeReopen: false,
-		suppressMacMenuItem: false,
 		suppressIsolationInfo: false,
 	}
 }
@@ -11,7 +10,6 @@ export function getDefaultSettings(): PctSettings {
 export function validateSettings(settings: PctSettings): PctSettings {
 	const keys: Array<keyof PctSettings> = [
 		'prioritizeReopen',
-		'suppressMacMenuItem',
 		'suppressIsolationInfo',
 	]
 	for (const key of keys) {
@@ -29,9 +27,6 @@ export async function loadSettings(storage: StorageLocalApi): Promise<PctSetting
 
 	if (typeof stored['prioritizeReopen'] === 'boolean') {
 		merged.prioritizeReopen = stored['prioritizeReopen']
-	}
-	if (typeof stored['suppressMacMenuItem'] === 'boolean') {
-		merged.suppressMacMenuItem = stored['suppressMacMenuItem']
 	}
 	if (typeof stored['suppressIsolationInfo'] === 'boolean') {
 		merged.suppressIsolationInfo = stored['suppressIsolationInfo']

@@ -13,7 +13,6 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue(undefined),
 			removeAll: vi.fn().mockResolvedValue(undefined),
 			refresh: vi.fn().mockResolvedValue(undefined),
-			overrideContext: vi.fn(),
 			onShown: { addListener: vi.fn() },
 			onHidden: { addListener: vi.fn() },
 			onClicked: { addListener: vi.fn() },
@@ -52,7 +51,6 @@ describe('getDefaultSettings', () => {
 		const defaults = getDefaultSettings()
 		expect(defaults).toEqual({
 			prioritizeReopen: false,
-			suppressMacMenuItem: false,
 			suppressIsolationInfo: false,
 		})
 	})
@@ -62,7 +60,6 @@ describe('validateSettings', () => {
 	it('accepts a fully valid settings object', () => {
 		const valid = {
 			prioritizeReopen: true,
-			suppressMacMenuItem: true,
 			suppressIsolationInfo: false,
 		}
 		expect(validateSettings(valid)).toEqual(valid)
@@ -71,16 +68,6 @@ describe('validateSettings', () => {
 	it('rejects non-boolean value for prioritizeReopen', () => {
 		const invalid = {
 			prioritizeReopen: 'yes',
-			suppressMacMenuItem: false,
-			suppressIsolationInfo: false,
-		}
-		expect(() => validateSettings(invalid as unknown as ReturnType<typeof getDefaultSettings>)).toThrow()
-	})
-
-	it('rejects non-boolean value for suppressMacMenuItem', () => {
-		const invalid = {
-			prioritizeReopen: false,
-			suppressMacMenuItem: null,
 			suppressIsolationInfo: false,
 		}
 		expect(() => validateSettings(invalid as unknown as ReturnType<typeof getDefaultSettings>)).toThrow()
@@ -89,7 +76,6 @@ describe('validateSettings', () => {
 	it('rejects non-boolean value for suppressIsolationInfo', () => {
 		const invalid = {
 			prioritizeReopen: false,
-			suppressMacMenuItem: false,
 			suppressIsolationInfo: 0,
 		}
 		expect(() => validateSettings(invalid as unknown as ReturnType<typeof getDefaultSettings>)).toThrow()
@@ -116,20 +102,17 @@ describe('loadSettings', () => {
 		const settings = await loadSettings(browserApi.storage.local)
 		expect(settings).toEqual({
 			prioritizeReopen: true,
-			suppressMacMenuItem: false,
 			suppressIsolationInfo: false,
 		})
 	})
 
-	it('merges multiple stored keys with defaults', async () => {
+	it('merges stored suppressIsolationInfo=true with defaults', async () => {
 		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-			suppressMacMenuItem: true,
 			suppressIsolationInfo: true,
 		})
 		const settings = await loadSettings(browserApi.storage.local)
 		expect(settings).toEqual({
 			prioritizeReopen: false,
-			suppressMacMenuItem: true,
 			suppressIsolationInfo: true,
 		})
 	})
@@ -145,7 +128,6 @@ describe('saveSettings', () => {
 	it('calls storage.local.set with the full settings object', async () => {
 		const settings = {
 			prioritizeReopen: true,
-			suppressMacMenuItem: true,
 			suppressIsolationInfo: false,
 		}
 		await saveSettings(browserApi.storage.local, settings)

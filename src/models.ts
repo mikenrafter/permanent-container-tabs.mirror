@@ -2,7 +2,6 @@
 
 export interface PctSettings {
 	prioritizeReopen: boolean
-	suppressMacMenuItem: boolean
 	suppressIsolationInfo: boolean
 }
 
@@ -79,7 +78,6 @@ export interface MenusApi {
 	create(details: MenusCreateDetails): Promise<void>
 	refresh(): Promise<void>
 	removeAll(): Promise<void>
-	overrideContext(contextOptions: { showDefaults: boolean }): void
 	onShown: {
 		addListener(listener: (info: MenusOnShownInfo, tab: Tab) => void | Promise<void>): void
 	}

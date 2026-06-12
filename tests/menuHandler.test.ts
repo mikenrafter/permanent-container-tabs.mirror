@@ -3,7 +3,7 @@ import { MenuHandlerImpl } from '../src/background/menuHandler'
 import type { BrowserApi, Tab } from '../src/models'
 import type { TcLayer } from '../src/background/tcLayer'
 import type { TabReopener } from '../src/background/tabReopener'
-import { MENU_OPEN_NEW, MENU_REOPEN, NO_CONTAINER, TEMP_CONTAINER_SENTINEL, PCT_SUFFIX } from '../src/constants'
+import { MENU_OPEN_NEW, MENU_REOPEN, NO_CONTAINER, TEMP_CONTAINER_SENTINEL } from '../src/constants'
 
 function makeBrowserApi(): BrowserApi {
 	return {
@@ -11,7 +11,6 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue(undefined),
 			removeAll: vi.fn().mockResolvedValue(undefined),
 			refresh: vi.fn().mockResolvedValue(undefined),
-			overrideContext: vi.fn(),
 			onShown: { addListener: vi.fn() },
 			onHidden: { addListener: vi.fn() },
 			onClicked: { addListener: vi.fn() },
@@ -65,7 +64,6 @@ function makeTabReopener(): TabReopener {
 
 const defaultSettings = {
 	prioritizeReopen: false,
-	suppressMacMenuItem: false,
 	suppressIsolationInfo: false,
 }
 
@@ -261,7 +259,7 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect((item![0] as { type?: string }).type).toBe('radio')
 	})
 
-	it('"Temporary Container" always uses bundled temp-container.svg (type:normal)', async () => {
+	it('"Temporary Container" uses type:normal with icon when tab is NOT in a temp container', async () => {
 		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
 		await handler.buildMenus(tab, defaultSettings, containers)
@@ -274,42 +272,22 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/temp-container.svg' })
 	})
 
-	it('buildMenus does NOT call overrideContext (that is handled synchronously in onShown)', async () => {
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		const settings = { ...defaultSettings, suppressMacMenuItem: true }
-		await handler.buildMenus(tab, settings, containers)
-
-		expect(browserApi.menus.overrideContext).not.toHaveBeenCalled()
-	})
-
-	it('with S3=false does NOT call overrideContext', async () => {
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		await handler.buildMenus(tab, defaultSettings, containers)
-
-		expect(browserApi.menus.overrideContext).not.toHaveBeenCalled()
-	})
-
-	it('menu labels contain (PCT) suffix when S3=false', async () => {
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		await handler.buildMenus(tab, defaultSettings, containers)
+	it('"Temporary Container" shows as radio with checked:true when tab is in a temp container', async () => {
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(tcWithTC.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
+		const tabInTc: Tab = { ...tab, cookieStoreId: 'firefox-tmp-1' }
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
+		await handler.buildMenus(tabInTc, defaultSettings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		const openNewParent = createCalls.find((args: unknown[]) =>
-			(args[0] as { id?: string }).id === MENU_OPEN_NEW
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
 		)
-		expect((openNewParent![0] as { title?: string }).title).toContain(PCT_SUFFIX)
-	})
-
-	it('menu labels do NOT contain (PCT) suffix when S3=true', async () => {
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		const settings = { ...defaultSettings, suppressMacMenuItem: true }
-		await handler.buildMenus(tab, settings, containers)
-
-		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		const openNewParent = createCalls.find((args: unknown[]) =>
-			(args[0] as { id?: string }).id === MENU_OPEN_NEW
-		)
-		expect((openNewParent![0] as { title?: string }).title).not.toContain(PCT_SUFFIX)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('radio')
+		expect((item![0] as { checked?: boolean }).checked).toBe(true)
+		expect((item![0] as { enabled?: boolean }).enabled).toBe(false)
+		expect((item![0] as { icons?: unknown }).icons).toBeUndefined()
 	})
 })
 

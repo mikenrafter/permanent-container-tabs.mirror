@@ -8,7 +8,6 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue(undefined),
 			removeAll: vi.fn().mockResolvedValue(undefined),
 			refresh: vi.fn().mockResolvedValue(undefined),
-			overrideContext: vi.fn(),
 			onShown: { addListener: vi.fn() },
 			onHidden: { addListener: vi.fn() },
 			onClicked: { addListener: vi.fn() },
