@@ -37,6 +37,9 @@ export class TabReopenerImpl implements TabReopener {
 		}
 
 		if (tab.id != null) {
+			if (cookieStoreId === NO_CONTAINER && this.tcLayer.isPresent()) {
+				await new Promise<void>(resolve => setTimeout(resolve, 250))
+			}
 			await this.browserApi.tabs.remove(tab.id)
 		}
 
@@ -103,7 +106,7 @@ export class TabReopenerImpl implements TabReopener {
 				if (!settings.suppressIsolationInfo) {
 					const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
 					console.log('[PCT] reopen: opening isolation info page:', infoUrl)
-					await this.browserApi.tabs.create({ url: infoUrl, active: true })
+					await this.browserApi.tabs.create({ url: infoUrl, index: newTab.index + 1, active: true })
 				}
 				return
 			}
