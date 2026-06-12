@@ -48,11 +48,10 @@ function makeBrowserApi(): BrowserApi {
 }
 
 describe('getDefaultSettings', () => {
-	it('returns all four keys with correct defaults', () => {
+	it('returns all keys with correct defaults', () => {
 		const defaults = getDefaultSettings()
 		expect(defaults).toEqual({
-			showOpenInNewTab: true,
-			showReopenInContainer: true,
+			prioritizeReopen: false,
 			suppressMacMenuItem: false,
 			suppressIsolationInfo: false,
 		})
@@ -62,28 +61,16 @@ describe('getDefaultSettings', () => {
 describe('validateSettings', () => {
 	it('accepts a fully valid settings object', () => {
 		const valid = {
-			showOpenInNewTab: true,
-			showReopenInContainer: false,
+			prioritizeReopen: true,
 			suppressMacMenuItem: true,
 			suppressIsolationInfo: false,
 		}
 		expect(validateSettings(valid)).toEqual(valid)
 	})
 
-	it('rejects non-boolean value for showOpenInNewTab', () => {
+	it('rejects non-boolean value for prioritizeReopen', () => {
 		const invalid = {
-			showOpenInNewTab: 'yes',
-			showReopenInContainer: true,
-			suppressMacMenuItem: false,
-			suppressIsolationInfo: false,
-		}
-		expect(() => validateSettings(invalid as unknown as ReturnType<typeof getDefaultSettings>)).toThrow()
-	})
-
-	it('rejects non-boolean value for showReopenInContainer', () => {
-		const invalid = {
-			showOpenInNewTab: true,
-			showReopenInContainer: 1,
+			prioritizeReopen: 'yes',
 			suppressMacMenuItem: false,
 			suppressIsolationInfo: false,
 		}
@@ -92,8 +79,7 @@ describe('validateSettings', () => {
 
 	it('rejects non-boolean value for suppressMacMenuItem', () => {
 		const invalid = {
-			showOpenInNewTab: true,
-			showReopenInContainer: true,
+			prioritizeReopen: false,
 			suppressMacMenuItem: null,
 			suppressIsolationInfo: false,
 		}
@@ -102,8 +88,7 @@ describe('validateSettings', () => {
 
 	it('rejects non-boolean value for suppressIsolationInfo', () => {
 		const invalid = {
-			showOpenInNewTab: true,
-			showReopenInContainer: true,
+			prioritizeReopen: false,
 			suppressMacMenuItem: false,
 			suppressIsolationInfo: 0,
 		}
@@ -124,14 +109,13 @@ describe('loadSettings', () => {
 		expect(settings).toEqual(getDefaultSettings())
 	})
 
-	it('merges stored partial with defaults', async () => {
+	it('merges stored prioritizeReopen=true with defaults', async () => {
 		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-			showOpenInNewTab: false,
+			prioritizeReopen: true,
 		})
 		const settings = await loadSettings(browserApi.storage.local)
 		expect(settings).toEqual({
-			showOpenInNewTab: false,
-			showReopenInContainer: true,
+			prioritizeReopen: true,
 			suppressMacMenuItem: false,
 			suppressIsolationInfo: false,
 		})
@@ -144,8 +128,7 @@ describe('loadSettings', () => {
 		})
 		const settings = await loadSettings(browserApi.storage.local)
 		expect(settings).toEqual({
-			showOpenInNewTab: true,
-			showReopenInContainer: true,
+			prioritizeReopen: false,
 			suppressMacMenuItem: true,
 			suppressIsolationInfo: true,
 		})
@@ -161,8 +144,7 @@ describe('saveSettings', () => {
 
 	it('calls storage.local.set with the full settings object', async () => {
 		const settings = {
-			showOpenInNewTab: false,
-			showReopenInContainer: true,
+			prioritizeReopen: true,
 			suppressMacMenuItem: true,
 			suppressIsolationInfo: false,
 		}

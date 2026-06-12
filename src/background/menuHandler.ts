@@ -44,21 +44,16 @@ export class MenuHandlerImpl implements MenuHandler {
 
 		await this.browserApi.menus.removeAll()
 
-		// F3: Suppress MAC menu
-		if (settings.suppressMacMenuItem) {
-			this.browserApi.menus.overrideContext({ showDefaults: false })
-		}
+		// NOTE: overrideContext MUST NOT be called here. It is called synchronously in
+		// pctRuntime's onShown handler before any awaits. Calling it again after removeAll()
+		// would fire when this extension has zero items, causing an empty override menu.
 
 		const suffix = settings.suppressMacMenuItem ? '' : PCT_SUFFIX
 
-		// F1: Open in New Container Tab
-		if (settings.showOpenInNewTab) {
-			await this.buildContainerSubmenu(MENU_OPEN_NEW, `Open in New Container Tab${suffix}`, tab, permanentContainers)
-		}
-
-		// F2: Reopen Tab in Container
-		if (settings.showReopenInContainer) {
+		if (settings.prioritizeReopen) {
 			await this.buildContainerSubmenu(MENU_REOPEN, `Reopen Tab in Container${suffix}`, tab, permanentContainers)
+		} else {
+			await this.buildContainerSubmenu(MENU_OPEN_NEW, `Open in New Container Tab${suffix}`, tab, permanentContainers)
 		}
 
 		await this.browserApi.menus.refresh()
@@ -89,17 +84,15 @@ export class MenuHandlerImpl implements MenuHandler {
 			contexts: ['tab'],
 		})
 
-		// Temporary Container — uses TC's own extension icon when not current;
-		// radio indicator replaces the icon when current.
+		// Temporary Container — bundled SVG icon (theme-agnostic gray)
 		if (this.tcLayer.isPresent()) {
-			const tcIconUrl = this.tcLayer.iconUrl
 			await this.browserApi.menus.create({
 				id: `${parentId}-${TEMP_CONTAINER_SENTINEL}`,
 				parentId,
 				title: 'Temporary Container',
-				type: tcIconUrl ? 'normal' : 'radio',
+				type: 'normal',
 				contexts: ['tab'],
-				...(tcIconUrl ? { icons: { 16: tcIconUrl } } : {}),
+				icons: { 16: 'icons/temp-container.svg' },
 			})
 		}
 

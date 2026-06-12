@@ -12,24 +12,27 @@
     .setting label { color: #333; }
     .setting .description { color: #666; font-size: 0.875rem; margin-top: 0.2rem; }
     .warning { color: #c0392b; font-size: 0.85rem; margin-top: 0.2rem; }
+    .toggle-group { margin: 1rem 0; }
+    .toggle-group .label { color: #333; font-weight: 500; margin-bottom: 0.5rem; }
+    .toggle-group .description { color: #666; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .toggle-option { display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0; }
+    .toggle-option input[type=radio] { width: 1rem; height: 1rem; }
+    .toggle-option label { color: #333; }
   </style>
 </head>
 <body>
   <h1>Permanent Container Tabs Settings</h1>
   <form id="settings-form">
-    <div class="setting">
-      <input type="checkbox" id="showOpenInNewTab" />
-      <div>
-        <label for="showOpenInNewTab">Show "Open in New Container Tab" menu item</label>
-        <div class="description">Adds a context menu item to open the tab's URL in a new tab in a chosen container.</div>
+    <div class="toggle-group">
+      <div class="label">Default container action</div>
+      <div class="description">Which operation runs when you pick a container from the context menu.</div>
+      <div class="toggle-option">
+        <input type="radio" id="prioritizeOpen" name="prioritizeReopen" value="open" />
+        <label for="prioritizeOpen">Prioritize Opening in a new tab over Reopening</label>
       </div>
-    </div>
-
-    <div class="setting">
-      <input type="checkbox" id="showReopenInContainer" />
-      <div>
-        <label for="showReopenInContainer">Show "Reopen Tab in Container" menu item</label>
-        <div class="description">Adds a context menu item to reopen the current tab in a chosen container.</div>
+      <div class="toggle-option">
+        <input type="radio" id="prioritizeReopen" name="prioritizeReopen" value="reopen" />
+        <label for="prioritizeReopen">Prioritize Reopening over Opening in a new tab</label>
       </div>
     </div>
 

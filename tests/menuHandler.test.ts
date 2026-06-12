@@ -64,8 +64,7 @@ function makeTabReopener(): TabReopener {
 }
 
 const defaultSettings = {
-	showOpenInNewTab: true,
-	showReopenInContainer: true,
+	prioritizeReopen: false,
 	suppressMacMenuItem: false,
 	suppressIsolationInfo: false,
 }
@@ -94,7 +93,7 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		tabReopener = makeTabReopener()
 	})
 
-	it('with S1=true creates "Open in New Container Tab" parent menu item', async () => {
+	it('with prioritizeReopen=false creates "Open in New Container Tab" parent menu item', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		await handler.buildMenus(tab, defaultSettings, containers)
 
@@ -105,9 +104,10 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect(parentCall).toBeDefined()
 	})
 
-	it('with S2=true creates "Reopen Tab in Container" parent menu item', async () => {
+	it('with prioritizeReopen=true creates "Reopen Tab in Container" parent menu item', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		await handler.buildMenus(tab, defaultSettings, containers)
+		const settings = { ...defaultSettings, prioritizeReopen: true }
+		await handler.buildMenus(tab, settings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
 		const parentCall = createCalls.find((args: unknown[]) =>
@@ -116,26 +116,25 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect(parentCall).toBeDefined()
 	})
 
-	it('with S1=false omits the F1 parent item', async () => {
+	it('with prioritizeReopen=false does NOT create the F2 parent item', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		const settings = { ...defaultSettings, showOpenInNewTab: false }
-		await handler.buildMenus(tab, settings, containers)
+		await handler.buildMenus(tab, defaultSettings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
 		const parentCall = createCalls.find((args: unknown[]) =>
-			(args[0] as { id?: string }).id === MENU_OPEN_NEW
+			(args[0] as { id?: string }).id === MENU_REOPEN
 		)
 		expect(parentCall).toBeUndefined()
 	})
 
-	it('with S2=false omits the F2 parent item', async () => {
+	it('with prioritizeReopen=true does NOT create the F1 parent item', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		const settings = { ...defaultSettings, showReopenInContainer: false }
+		const settings = { ...defaultSettings, prioritizeReopen: true }
 		await handler.buildMenus(tab, settings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
 		const parentCall = createCalls.find((args: unknown[]) =>
-			(args[0] as { id?: string }).id === MENU_REOPEN
+			(args[0] as { id?: string }).id === MENU_OPEN_NEW
 		)
 		expect(parentCall).toBeUndefined()
 	})
@@ -175,8 +174,6 @@ describe('MenuHandlerImpl.buildMenus', () => {
 	})
 
 	it('temporary containers are NOT included in the submenu (they were already filtered)', async () => {
-		// The containers list passed to buildMenus should already be filtered permanent-only
-		// This test verifies that the handler does not re-add them
 		const permanentContainers = [
 			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' },
 		]
@@ -184,7 +181,6 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		await handler.buildMenus(tab, defaultSettings, permanentContainers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		// Only permanent container entries should be present (no temp containers)
 		const containerItems = createCalls.filter((args: unknown[]) => {
 			const detail = args[0] as { id?: string; parentId?: string }
 			return detail.parentId === MENU_OPEN_NEW && detail.id !== `${MENU_OPEN_NEW}-${NO_CONTAINER}` && detail.id !== `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
@@ -265,9 +261,9 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect((item![0] as { type?: string }).type).toBe('radio')
 	})
 
-	it('"Temporary Container" uses TC icon when available (type:normal)', async () => {
-		const tcWithIcon = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}', 'moz-extension://tc/icon16.png')
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithIcon, tabReopener })
+	it('"Temporary Container" always uses bundled temp-container.svg (type:normal)', async () => {
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
 		await handler.buildMenus(tab, defaultSettings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
@@ -275,27 +271,15 @@ describe('MenuHandlerImpl.buildMenus', () => {
 			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
 		)
 		expect((item![0] as { type?: string }).type).toBe('normal')
-		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'moz-extension://tc/icon16.png' })
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/temp-container.svg' })
 	})
 
-	it('"Temporary Container" falls back to type:radio when TC has no icon', async () => {
-		const tcNoIcon = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}', null)
-		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcNoIcon, tabReopener })
-		await handler.buildMenus(tab, defaultSettings, containers)
-
-		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		const item = createCalls.find((args: unknown[]) =>
-			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
-		)
-		expect((item![0] as { type?: string }).type).toBe('radio')
-	})
-
-	it('with S3=true calls overrideContext({ showDefaults: false })', async () => {
+	it('buildMenus does NOT call overrideContext (that is handled synchronously in onShown)', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		const settings = { ...defaultSettings, suppressMacMenuItem: true }
 		await handler.buildMenus(tab, settings, containers)
 
-		expect(browserApi.menus.overrideContext).toHaveBeenCalledWith({ showDefaults: false })
+		expect(browserApi.menus.overrideContext).not.toHaveBeenCalled()
 	})
 
 	it('with S3=false does NOT call overrideContext', async () => {
@@ -375,10 +359,7 @@ describe('MenuHandlerImpl.handleHidden', () => {
 		const tabReopener = makeTabReopener()
 
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
-		// After hiding, the cache should be cleared (internal state test — we verify
-		// by checking that buildMenus queries contextualIdentities fresh next time)
 		handler.handleHidden()
-		// No assertion needed other than no crash — cache clearing is internal
 		expect(true).toBe(true)
 	})
 })

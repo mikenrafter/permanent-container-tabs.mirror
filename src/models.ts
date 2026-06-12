@@ -1,8 +1,7 @@
 // ---- Settings ----
 
 export interface PctSettings {
-	showOpenInNewTab: boolean
-	showReopenInContainer: boolean
+	prioritizeReopen: boolean
 	suppressMacMenuItem: boolean
 	suppressIsolationInfo: boolean
 }

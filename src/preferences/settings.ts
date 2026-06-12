@@ -2,8 +2,7 @@ import type { PctSettings, StorageLocalApi } from '../models'
 
 export function getDefaultSettings(): PctSettings {
 	return {
-		showOpenInNewTab: true,
-		showReopenInContainer: true,
+		prioritizeReopen: false,
 		suppressMacMenuItem: false,
 		suppressIsolationInfo: false,
 	}
@@ -11,8 +10,7 @@ export function getDefaultSettings(): PctSettings {
 
 export function validateSettings(settings: PctSettings): PctSettings {
 	const keys: Array<keyof PctSettings> = [
-		'showOpenInNewTab',
-		'showReopenInContainer',
+		'prioritizeReopen',
 		'suppressMacMenuItem',
 		'suppressIsolationInfo',
 	]
@@ -29,11 +27,8 @@ export async function loadSettings(storage: StorageLocalApi): Promise<PctSetting
 	const stored = await storage.get(null)
 	const merged: PctSettings = { ...defaults }
 
-	if (typeof stored['showOpenInNewTab'] === 'boolean') {
-		merged.showOpenInNewTab = stored['showOpenInNewTab']
-	}
-	if (typeof stored['showReopenInContainer'] === 'boolean') {
-		merged.showReopenInContainer = stored['showReopenInContainer']
+	if (typeof stored['prioritizeReopen'] === 'boolean') {
+		merged.prioritizeReopen = stored['prioritizeReopen']
 	}
 	if (typeof stored['suppressMacMenuItem'] === 'boolean') {
 		merged.suppressMacMenuItem = stored['suppressMacMenuItem']

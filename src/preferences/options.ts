@@ -4,16 +4,14 @@ type OptionsBrowser = {
 const optBrowser = (): OptionsBrowser => (globalThis as unknown as { browser: OptionsBrowser }).browser
 
 interface PctSettings {
-	showOpenInNewTab: boolean
-	showReopenInContainer: boolean
+	prioritizeReopen: boolean
 	suppressMacMenuItem: boolean
 	suppressIsolationInfo: boolean
 }
 
 function getDefaultSettings(): PctSettings {
 	return {
-		showOpenInNewTab: true,
-		showReopenInContainer: true,
+		prioritizeReopen: false,
 		suppressMacMenuItem: false,
 		suppressIsolationInfo: false,
 	}
@@ -24,32 +22,29 @@ async function loadAndRenderSettings(): Promise<void> {
 	const stored = await optBrowser().storage.local.get(null)
 
 	const settings: PctSettings = {
-		showOpenInNewTab: typeof stored['showOpenInNewTab'] === 'boolean' ? stored['showOpenInNewTab'] : defaults.showOpenInNewTab,
-		showReopenInContainer: typeof stored['showReopenInContainer'] === 'boolean' ? stored['showReopenInContainer'] : defaults.showReopenInContainer,
+		prioritizeReopen: typeof stored['prioritizeReopen'] === 'boolean' ? stored['prioritizeReopen'] : defaults.prioritizeReopen,
 		suppressMacMenuItem: typeof stored['suppressMacMenuItem'] === 'boolean' ? stored['suppressMacMenuItem'] : defaults.suppressMacMenuItem,
 		suppressIsolationInfo: typeof stored['suppressIsolationInfo'] === 'boolean' ? stored['suppressIsolationInfo'] : defaults.suppressIsolationInfo,
 	}
 
-	const s1 = document.getElementById('showOpenInNewTab') as HTMLInputElement | null
-	const s2 = document.getElementById('showReopenInContainer') as HTMLInputElement | null
+	const openRadio = document.getElementById('prioritizeOpen') as HTMLInputElement | null
+	const reopenRadio = document.getElementById('prioritizeReopen') as HTMLInputElement | null
 	const s3 = document.getElementById('suppressMacMenuItem') as HTMLInputElement | null
 	const s4 = document.getElementById('suppressIsolationInfo') as HTMLInputElement | null
 
-	if (s1) s1.checked = settings.showOpenInNewTab
-	if (s2) s2.checked = settings.showReopenInContainer
+	if (openRadio) openRadio.checked = !settings.prioritizeReopen
+	if (reopenRadio) reopenRadio.checked = settings.prioritizeReopen
 	if (s3) s3.checked = settings.suppressMacMenuItem
 	if (s4) s4.checked = settings.suppressIsolationInfo
 }
 
 async function saveSettings(): Promise<void> {
-	const s1 = document.getElementById('showOpenInNewTab') as HTMLInputElement | null
-	const s2 = document.getElementById('showReopenInContainer') as HTMLInputElement | null
+	const openRadio = document.getElementById('prioritizeOpen') as HTMLInputElement | null
 	const s3 = document.getElementById('suppressMacMenuItem') as HTMLInputElement | null
 	const s4 = document.getElementById('suppressIsolationInfo') as HTMLInputElement | null
 
 	await optBrowser().storage.local.set({
-		showOpenInNewTab: s1?.checked ?? true,
-		showReopenInContainer: s2?.checked ?? true,
+		prioritizeReopen: !(openRadio?.checked ?? true),
 		suppressMacMenuItem: s3?.checked ?? false,
 		suppressIsolationInfo: s4?.checked ?? false,
 	})

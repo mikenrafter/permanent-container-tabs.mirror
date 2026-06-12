@@ -129,7 +129,7 @@ describe('PctRuntimeImpl.initialize', () => {
 	})
 
 	it('calls overrideContext synchronously in onShown when suppressMacMenuItem is cached', async () => {
-		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ suppressMacMenuItem: true })
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ prioritizeReopen: false, suppressMacMenuItem: true })
 		const tcLayer = makeTcLayer()
 		const menuHandler = makeMenuHandler()
 		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
@@ -146,7 +146,7 @@ describe('PctRuntimeImpl.initialize', () => {
 	})
 
 	it('does NOT call overrideContext when suppressMacMenuItem is false', async () => {
-		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ suppressMacMenuItem: false })
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ prioritizeReopen: false, suppressMacMenuItem: false })
 		const tcLayer = makeTcLayer()
 		const menuHandler = makeMenuHandler()
 		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
@@ -187,7 +187,7 @@ describe('PctRuntimeImpl tabs.onUpdated isolation info', () => {
 		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
 		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
 
-		const listener = await setupAndGetListener(tcLayer, { suppressIsolationInfo: false })
+		const listener = await setupAndGetListener(tcLayer, { prioritizeReopen: false, suppressIsolationInfo: false })
 
 		const tab: Tab = { id: 1, url: 'https://example.com', index: 0, cookieStoreId: 'firefox-tmp-1', windowId: 1 }
 		await listener(1, { cookieStoreId: 'firefox-tmp-1' }, tab)
@@ -201,7 +201,7 @@ describe('PctRuntimeImpl tabs.onUpdated isolation info', () => {
 		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
 		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
 
-		const listener = await setupAndGetListener(tcLayer, { suppressIsolationInfo: true })
+		const listener = await setupAndGetListener(tcLayer, { prioritizeReopen: false, suppressIsolationInfo: true })
 
 		const tab: Tab = { id: 1, url: 'https://example.com', index: 0, cookieStoreId: 'firefox-tmp-1', windowId: 1 }
 		await listener(1, { cookieStoreId: 'firefox-tmp-1' }, tab)
@@ -259,7 +259,7 @@ describe('PctRuntimeImpl tabs.onUpdated isolation info', () => {
 		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
 		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
 
-		const listener = await setupAndGetListener(tcLayer, { suppressIsolationInfo: false })
+		const listener = await setupAndGetListener(tcLayer, { prioritizeReopen: false, suppressIsolationInfo: false })
 
 		const tab: Tab = { id: 1, url: 'https://example.com', index: 0, cookieStoreId: 'firefox-tmp-1', windowId: 1 }
 		await listener(1, { cookieStoreId: 'firefox-tmp-1' }, tab)
