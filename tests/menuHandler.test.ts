@@ -33,6 +33,7 @@ function makeBrowserApi(): BrowserApi {
 				get: vi.fn().mockResolvedValue({}),
 				set: vi.fn().mockResolvedValue(undefined),
 			},
+			onChanged: { addListener: vi.fn() },
 		},
 		runtime: {
 			sendMessage: vi.fn().mockResolvedValue(false),
@@ -44,9 +45,10 @@ function makeBrowserApi(): BrowserApi {
 	}
 }
 
-function makeTcLayer(extensionId: string | null = null): TcLayer {
+function makeTcLayer(extensionId: string | null = null, iconUrl: string | null = null): TcLayer {
 	return {
 		extensionId,
+		iconUrl,
 		isPresent: vi.fn().mockReturnValue(extensionId !== null),
 		initialize: vi.fn().mockResolvedValue(undefined),
 		isTempContainer: vi.fn().mockResolvedValue(false),
@@ -219,6 +221,73 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		)
 		expect(personalItem).toBeDefined()
 		expect((personalItem![0] as { enabled?: boolean }).enabled).toBe(true)
+	})
+
+	it('non-current container with iconUrl uses type:normal with the icon', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const containerWithIcon = [
+			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue', iconUrl: 'resource://usercontext/briefcase.svg' },
+		]
+		await handler.buildMenus(tab, defaultSettings, containerWithIcon)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-firefox-container-1`
+		)
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'resource://usercontext/briefcase.svg' })
+	})
+
+	it('current container uses type:radio and strips icon', async () => {
+		const tabInWork: Tab = { ...tab, cookieStoreId: 'firefox-container-1' }
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const containerWithIcon = [
+			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue', iconUrl: 'resource://usercontext/briefcase.svg' },
+		]
+		await handler.buildMenus(tabInWork, defaultSettings, containerWithIcon)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-firefox-container-1`
+		)
+		expect((item![0] as { type?: string }).type).toBe('radio')
+		expect((item![0] as { icons?: unknown }).icons).toBeUndefined()
+	})
+
+	it('"No Container" always uses type:radio', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${NO_CONTAINER}`
+		)
+		expect((item![0] as { type?: string }).type).toBe('radio')
+	})
+
+	it('"Temporary Container" uses TC icon when available (type:normal)', async () => {
+		const tcWithIcon = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}', 'moz-extension://tc/icon16.png')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithIcon, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+		)
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'moz-extension://tc/icon16.png' })
+	})
+
+	it('"Temporary Container" falls back to type:radio when TC has no icon', async () => {
+		const tcNoIcon = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}', null)
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcNoIcon, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+		)
+		expect((item![0] as { type?: string }).type).toBe('radio')
 	})
 
 	it('with S3=true calls overrideContext({ showDefaults: false })', async () => {

@@ -35,6 +35,7 @@ function makeBrowserApi(): BrowserApi {
 				get: vi.fn().mockResolvedValue({}),
 				set: vi.fn().mockResolvedValue(undefined),
 			},
+			onChanged: { addListener: vi.fn() },
 		},
 		runtime: {
 			sendMessage: vi.fn().mockResolvedValue(false),

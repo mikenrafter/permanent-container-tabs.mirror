@@ -8,6 +8,8 @@ export interface TcLayerDeps {
 
 export interface TcLayer {
 	readonly extensionId: string | null
+	/** 16-px icon URL for the TC extension itself, or null if TC is not installed. */
+	readonly iconUrl: string | null
 	isPresent(): boolean
 	initialize(): Promise<void>
 	isTempContainer(cookieStoreId: string): Promise<boolean>
@@ -19,6 +21,7 @@ export class TcLayerImpl implements TcLayer {
 	private readonly browserApi: BrowserApi
 	private readonly logger: LoggerLike
 	private _extensionId: string | null = null
+	private _iconUrl: string | null = null
 
 	constructor(deps: TcLayerDeps) {
 		this.browserApi = deps.browserApi
@@ -27,6 +30,10 @@ export class TcLayerImpl implements TcLayer {
 
 	get extensionId(): string | null {
 		return this._extensionId
+	}
+
+	get iconUrl(): string | null {
+		return this._iconUrl
 	}
 
 	isPresent(): boolean {
@@ -39,6 +46,8 @@ export class TcLayerImpl implements TcLayer {
 				const extensionInfo = await this.browserApi.management.get(extensionId)
 				if (extensionInfo.enabled) {
 					this._extensionId = extensionId
+					const icon = extensionInfo.icons?.find(i => i.size === 16) ?? extensionInfo.icons?.[0]
+					this._iconUrl = icon?.url ?? null
 					this.debug('Temporary Containers detected:', extensionInfo.name, extensionId)
 					return
 				}

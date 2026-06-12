@@ -32,6 +32,7 @@ function makeBrowserApi(): BrowserApi {
 				get: vi.fn().mockResolvedValue({}),
 				set: vi.fn().mockResolvedValue(undefined),
 			},
+			onChanged: { addListener: vi.fn() },
 		},
 		runtime: {
 			sendMessage: vi.fn().mockResolvedValue(false),
@@ -46,6 +47,7 @@ function makeBrowserApi(): BrowserApi {
 function makeTcLayer(extensionId: string | null = null): TcLayer {
 	return {
 		extensionId,
+		iconUrl: null,
 		isPresent: vi.fn().mockReturnValue(extensionId !== null),
 		initialize: vi.fn().mockResolvedValue(undefined),
 		isTempContainer: vi.fn().mockResolvedValue(false),

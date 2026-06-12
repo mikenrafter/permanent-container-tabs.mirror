@@ -77,7 +77,7 @@ export class MenuHandlerImpl implements MenuHandler {
 			contexts: ['tab'],
 		})
 
-		// No Container (always first)
+		// No Container — no icon, always radio
 		const noContainerIsCurrent = tab.cookieStoreId === NO_CONTAINER || !tab.cookieStoreId
 		await this.browserApi.menus.create({
 			id: `${parentId}-${NO_CONTAINER}`,
@@ -89,30 +89,34 @@ export class MenuHandlerImpl implements MenuHandler {
 			contexts: ['tab'],
 		})
 
-		// Temporary Container (only if TC installed)
+		// Temporary Container — uses TC's own extension icon when not current;
+		// radio indicator replaces the icon when current.
 		if (this.tcLayer.isPresent()) {
+			const tcIconUrl = this.tcLayer.iconUrl
 			await this.browserApi.menus.create({
 				id: `${parentId}-${TEMP_CONTAINER_SENTINEL}`,
 				parentId,
 				title: 'Temporary Container',
-				type: 'radio',
-				checked: false,
+				type: tcIconUrl ? 'normal' : 'radio',
 				contexts: ['tab'],
+				...(tcIconUrl ? { icons: { 16: tcIconUrl } } : {}),
 			})
 		}
 
-		// All permanent containers
+		// Permanent containers — icon replaces radio button when not current;
+		// radio indicator replaces the icon when current.
 		for (const container of permanentContainers) {
 			const isCurrent = tab.cookieStoreId === container.cookieStoreId
+			const iconUrl = container.iconUrl
 			await this.browserApi.menus.create({
 				id: `${parentId}-${container.cookieStoreId}`,
 				parentId,
 				title: container.name,
-				type: 'radio',
+				type: isCurrent ? 'radio' : (iconUrl ? 'normal' : 'radio'),
 				checked: isCurrent,
 				enabled: !isCurrent,
 				contexts: ['tab'],
-				icons: { 16: 'icons/icon.svg' },
+				...(isCurrent || !iconUrl ? {} : { icons: { 16: iconUrl } }),
 			})
 		}
 	}

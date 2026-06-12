@@ -32,6 +32,7 @@ function makeBrowserApi(): BrowserApi {
 				get: vi.fn().mockResolvedValue({}),
 				set: vi.fn().mockResolvedValue(undefined),
 			},
+			onChanged: { addListener: vi.fn() },
 		},
 		runtime: {
 			sendMessage: vi.fn().mockResolvedValue(false),
@@ -46,6 +47,7 @@ function makeBrowserApi(): BrowserApi {
 function makeTcLayer(extensionId: string | null = null): TcLayer {
 	return {
 		extensionId,
+		iconUrl: null,
 		isPresent: vi.fn().mockReturnValue(extensionId !== null),
 		initialize: vi.fn().mockResolvedValue(undefined),
 		isTempContainer: vi.fn().mockResolvedValue(extensionId !== null),
@@ -115,6 +117,48 @@ describe('PctRuntimeImpl.initialize', () => {
 		await runtime.initialize()
 
 		expect(browserApi.tabs.onUpdated.addListener).toHaveBeenCalled()
+	})
+
+	it('registers storage.onChanged listener to keep settings cache live', async () => {
+		const tcLayer = makeTcLayer()
+		const menuHandler = makeMenuHandler()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		expect(browserApi.storage.onChanged.addListener).toHaveBeenCalled()
+	})
+
+	it('calls overrideContext synchronously in onShown when suppressMacMenuItem is cached', async () => {
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ suppressMacMenuItem: true })
+		const tcLayer = makeTcLayer()
+		const menuHandler = makeMenuHandler()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		const onShownCalls = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls
+		const listener = onShownCalls[0]?.[0] as (info: { contexts: string[] }, tab: Tab) => void
+		const tab: Tab = { id: 1, url: 'https://example.com', index: 0 }
+
+		// Call synchronously — overrideContext must be called in the same turn
+		listener({ contexts: ['tab'] }, tab)
+
+		expect(browserApi.menus.overrideContext).toHaveBeenCalledWith({ showDefaults: false })
+	})
+
+	it('does NOT call overrideContext when suppressMacMenuItem is false', async () => {
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ suppressMacMenuItem: false })
+		const tcLayer = makeTcLayer()
+		const menuHandler = makeMenuHandler()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		const onShownCalls = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls
+		const listener = onShownCalls[0]?.[0] as (info: { contexts: string[] }, tab: Tab) => void
+		const tab: Tab = { id: 1, url: 'https://example.com', index: 0 }
+
+		listener({ contexts: ['tab'] }, tab)
+
+		expect(browserApi.menus.overrideContext).not.toHaveBeenCalled()
 	})
 })
 

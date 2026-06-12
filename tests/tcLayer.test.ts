@@ -30,6 +30,7 @@ function makeBrowserApi(): BrowserApi {
 				get: vi.fn().mockResolvedValue({}),
 				set: vi.fn().mockResolvedValue(undefined),
 			},
+			onChanged: { addListener: vi.fn() },
 		},
 		runtime: {
 			sendMessage: vi.fn().mockResolvedValue(false),
@@ -58,6 +59,49 @@ describe('TcLayerImpl.initialize', () => {
 		const layer = new TcLayerImpl({ browserApi, logger: console })
 		await layer.initialize()
 		expect(layer.extensionId).toBe('{c607c8df-14a7-4f28-894f-29e8722976af}')
+	})
+
+	it('stores the 16px icon URL from the extension info', async () => {
+		;(browserApi.management.get as ReturnType<typeof vi.fn>).mockImplementation(async (id: string) => {
+			if (id === '{c607c8df-14a7-4f28-894f-29e8722976af}') {
+				return {
+					id,
+					name: 'Temporary Containers',
+					enabled: true,
+					type: 'extension',
+					icons: [
+						{ size: 48, url: 'moz-extension://tc/icons/icon48.png' },
+						{ size: 16, url: 'moz-extension://tc/icons/icon16.png' },
+					],
+				}
+			}
+			throw new Error('not installed')
+		})
+		const layer = new TcLayerImpl({ browserApi, logger: console })
+		await layer.initialize()
+		expect(layer.iconUrl).toBe('moz-extension://tc/icons/icon16.png')
+	})
+
+	it('falls back to first icon when no 16px entry exists', async () => {
+		;(browserApi.management.get as ReturnType<typeof vi.fn>).mockImplementation(async (id: string) => {
+			if (id === '{c607c8df-14a7-4f28-894f-29e8722976af}') {
+				return {
+					id, name: 'Temporary Containers', enabled: true, type: 'extension',
+					icons: [{ size: 48, url: 'moz-extension://tc/icons/icon48.png' }],
+				}
+			}
+			throw new Error('not installed')
+		})
+		const layer = new TcLayerImpl({ browserApi, logger: console })
+		await layer.initialize()
+		expect(layer.iconUrl).toBe('moz-extension://tc/icons/icon48.png')
+	})
+
+	it('sets iconUrl to null when TC is not installed', async () => {
+		;(browserApi.management.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not installed'))
+		const layer = new TcLayerImpl({ browserApi, logger: console })
+		await layer.initialize()
+		expect(layer.iconUrl).toBeNull()
 	})
 
 	it('skips disabled extensions and uses the next', async () => {

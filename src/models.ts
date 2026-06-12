@@ -43,11 +43,17 @@ export interface TabChangeInfo {
 	cookieStoreId?: string
 }
 
+export interface ExtensionIcon {
+	size: number
+	url: string
+}
+
 export interface ExtensionInfo {
 	id: string
 	name: string
 	enabled: boolean
 	type: string
+	icons?: ExtensionIcon[]
 }
 
 export interface MenusCreateDetails {
@@ -107,8 +113,16 @@ export interface StorageLocalApi {
 	set(items: Record<string, unknown>): Promise<void>
 }
 
+export interface StorageChange {
+	oldValue?: unknown
+	newValue?: unknown
+}
+
 export interface StorageApi {
 	local: StorageLocalApi
+	onChanged: {
+		addListener(listener: (changes: Record<string, StorageChange>) => void): void
+	}
 }
 
 export interface BrowserApi {
