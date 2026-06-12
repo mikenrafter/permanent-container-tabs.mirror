@@ -78,12 +78,14 @@ export class MenuHandlerImpl implements MenuHandler {
 		})
 
 		// No Container (always first)
+		const noContainerIsCurrent = tab.cookieStoreId === NO_CONTAINER || !tab.cookieStoreId
 		await this.browserApi.menus.create({
 			id: `${parentId}-${NO_CONTAINER}`,
 			parentId,
 			title: 'No Container',
 			type: 'radio',
-			checked: tab.cookieStoreId === NO_CONTAINER || !tab.cookieStoreId,
+			checked: noContainerIsCurrent,
+			enabled: !noContainerIsCurrent,
 			contexts: ['tab'],
 		})
 
@@ -101,12 +103,14 @@ export class MenuHandlerImpl implements MenuHandler {
 
 		// All permanent containers
 		for (const container of permanentContainers) {
+			const isCurrent = tab.cookieStoreId === container.cookieStoreId
 			await this.browserApi.menus.create({
 				id: `${parentId}-${container.cookieStoreId}`,
 				parentId,
 				title: container.name,
 				type: 'radio',
-				checked: tab.cookieStoreId === container.cookieStoreId,
+				checked: isCurrent,
+				enabled: !isCurrent,
 				contexts: ['tab'],
 				icons: { 16: 'icons/icon.svg' },
 			})

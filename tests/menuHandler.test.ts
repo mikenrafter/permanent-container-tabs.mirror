@@ -191,7 +191,7 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect((containerItems[0]![0] as { id?: string }).id).toBe(`${MENU_OPEN_NEW}-firefox-container-1`)
 	})
 
-	it("current tab's container entry has checked: true", async () => {
+	it("current tab's container entry has checked: true and enabled: false", async () => {
 		const tabInWork: Tab = { ...tab, cookieStoreId: 'firefox-container-1' }
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		await handler.buildMenus(tabInWork, defaultSettings, containers)
@@ -202,6 +202,23 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		)
 		expect(workItem).toBeDefined()
 		expect((workItem![0] as { checked?: boolean }).checked).toBe(true)
+		expect((workItem![0] as { enabled?: boolean }).enabled).toBe(false)
+	})
+
+	it("non-current container entries have enabled: true", async () => {
+		const tabInWork: Tab = { ...tab, cookieStoreId: 'firefox-container-1' }
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tabInWork, defaultSettings, [
+			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' },
+			{ name: 'Personal', cookieStoreId: 'firefox-container-2', icon: 'fingerprint', color: 'green' },
+		])
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const personalItem = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-firefox-container-2`
+		)
+		expect(personalItem).toBeDefined()
+		expect((personalItem![0] as { enabled?: boolean }).enabled).toBe(true)
 	})
 
 	it('with S3=true calls overrideContext({ showDefaults: false })', async () => {

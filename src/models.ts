@@ -57,6 +57,7 @@ export interface MenusCreateDetails {
 	parentId?: string
 	type?: 'normal' | 'separator' | 'radio' | 'checkbox'
 	checked?: boolean
+	enabled?: boolean
 	icons?: Record<number, string>
 }
 
