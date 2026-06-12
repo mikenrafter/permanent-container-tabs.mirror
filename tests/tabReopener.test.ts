@@ -231,13 +231,55 @@ describe('TabReopenerImpl.reopen — TC intercept check', () => {
 		expect(infoCall).toBeUndefined()
 	})
 
-	it('handles tabs.get throwing gracefully (TC closed our tab)', async () => {
+	it('continues polling (does not stop) when tabs.get throws, resolves after exhausting polls', async () => {
 		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
 		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('No tab with id: 99'))
 
 		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
 		await vi.runAllTimersAsync()
 		await expect(promise).resolves.toBeUndefined()
+		// tabs.get was attempted on every poll despite throwing each time
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(10)
+	})
+
+	it('detects TC replacement tab with matching URL when original tab was removed', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('No tab with id: 99'))
+		;(browserApi.tabs.query as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 200, url: 'https://example.com', cookieStoreId: 'firefox-tmp-1', index: 1, windowId: 1 },
+		])
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockImplementation(
+			async (id: string) => id.startsWith('firefox-tmp')
+		)
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({ suppressIsolationInfo: false })
+
+		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
+		await vi.advanceTimersByTimeAsync(500) // first poll: tabs.get throws, scan finds TC replacement
+		await promise
+
+		const infoCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls.find(
+			(args: unknown[]) => (args[0] as { url?: string }).url?.includes('isolation-info.html')
+		)
+		expect(infoCall).toBeDefined()
+		expect((infoCall![0] as { active?: boolean }).active).toBe(true)
+	})
+
+	it('ignores TC replacement tab whose URL does not match the original', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('No tab with id: 99'))
+		;(browserApi.tabs.query as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 200, url: 'https://different.com', cookieStoreId: 'firefox-tmp-1', index: 1, windowId: 1 },
+		])
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
+
+		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
+		await vi.runAllTimersAsync()
+		await promise
+
+		const infoCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls.find(
+			(args: unknown[]) => (args[0] as { url?: string }).url?.includes('isolation-info.html')
+		)
+		expect(infoCall).toBeUndefined()
 	})
 
 	it('skips TC intercept check entirely when chosen container is TEMP_CONTAINER_SENTINEL', async () => {

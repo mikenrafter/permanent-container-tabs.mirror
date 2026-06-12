@@ -143,11 +143,17 @@ current-tab case).
 2. Close the original tab via `browser.tabs.remove(oldTabId)`.
 3. **TC intercept check** (skipped for Temporary Container target or when TC is absent):
    - `await new Promise(resolve => setTimeout(resolve, 500))` — initial 500 ms delay.
-   - Loop up to 10 times (2 s polling window at 200 ms/poll):
-     - `const current = await browser.tabs.get(newTabId)` — if this throws, stop silently.
-     - `if (await tcLayer.isTempContainer(current.cookieStoreId))` — TC intercepted; if
-       `!suppressIsolationInfo`: `browser.tabs.create({ url: infoUrl, active: true })`; return.
-     - `await new Promise(resolve => setTimeout(resolve, 200))` — wait before next poll.
+   - Loop up to 10 times (2 s polling window at 200 ms/poll). Each iteration:
+     - **Check A — created tab by ID:** `tabs.get(newTabId)`. If it throws (TC removed it),
+       note it as gone and continue to Check B. If the tab's `cookieStoreId` is a TC
+       container → TC intercepted (see below).
+     - **Check B — window scan:** `tabs.query({ windowId })`, skip `newTabId`. For each
+       other tab whose URL matches the original URL and whose `cookieStoreId` is a TC
+       container → TC intercepted (see below).
+     - **TC intercepted:** if `!suppressIsolationInfo`:
+       `browser.tabs.create({ url: infoUrl, active: true })`; return.
+     - If neither check found TC: sleep 200 ms and continue (even if the created tab is gone,
+       keep watching — TC may still be creating the replacement).
 
 ### TC Global Isolation Detection (F4)
 1. On `tabs.onUpdated` (with `changeInfo.cookieStoreId`), check if the new `cookieStoreId`
@@ -197,10 +203,14 @@ current-tab case).
 - Does NOT open info page when `suppressIsolationInfo=true`.
 - Does NOT open info page when TC is not present.
 - Does NOT open info page when the new tab is in a permanent container (no TC intercept).
-- Handles `tabs.get` throwing gracefully (tab removed before check).
 - TC intercept check is skipped when the chosen container is `TEMP_CONTAINER_SENTINEL`.
 - Initial check fires at 500 ms, subsequent polls every 200 ms (up to 10 polls / 2 s).
 - Stops polling as soon as TC intercept is detected; does not poll further after detecting.
+- Each poll checks both the created tab by ID (Check A) and any other TC tab in the window
+  whose URL matches the original URL (Check B — handles TC closing our tab and spawning a
+  replacement). Continues polling even if `tabs.get` throws (tab gone, replacement may appear).
+- TC replacement tab with non-matching URL is ignored.
+- When no TC intercept is found after all 10 polls, resolves silently.
 
 ### `pctRuntime.test.ts`
 - `initialize()` calls `tcLayer.initialize()`, `menuHandler.initialize()`, and registers listeners.

@@ -41,31 +41,77 @@ export class TabReopenerImpl implements TabReopener {
 		}
 
 		// TC intercept check — only when TC is present and we didn't deliberately open in TC
-		if (cookieStoreId === TEMP_CONTAINER_SENTINEL || !this.tcLayer.isPresent() || newTab.id == null) return
+		if (cookieStoreId === TEMP_CONTAINER_SENTINEL) {
+			console.log('[PCT] reopen: skipping TC intercept check — target was TEMP_CONTAINER_SENTINEL')
+			return
+		}
+		if (!this.tcLayer.isPresent()) {
+			console.log('[PCT] reopen: skipping TC intercept check — TC not present')
+			return
+		}
+		if (newTab.id == null) {
+			console.log('[PCT] reopen: skipping TC intercept check — new tab has no id')
+			return
+		}
 
+		console.log(`[PCT] reopen: starting TC intercept check for tab ${newTab.id} (target=${cookieStoreId}, url=${url}), waiting 500ms`)
 		await new Promise<void>(resolve => setTimeout(resolve, 500))
 
 		for (let i = 0; i < 10; i++) {
-			let currentTab: Tab
+			const poll = `poll ${i + 1}/10`
+
+			// Check A — our created tab by ID
+			let checkAIsTC = false
+			console.log(`[PCT] reopen: ${poll} — Check A: tabs.get(${newTab.id})`)
 			try {
-				currentTab = await this.browserApi.tabs.get(newTab.id)
-			} catch {
-				return
+				const currentTab = await this.browserApi.tabs.get(newTab.id)
+				console.log(`[PCT] reopen: ${poll} — Check A: cookieStoreId=${currentTab.cookieStoreId}`)
+				if (currentTab.cookieStoreId) {
+					checkAIsTC = await this.tcLayer.isTempContainer(currentTab.cookieStoreId)
+					console.log(`[PCT] reopen: ${poll} — Check A: isTempContainer=${checkAIsTC}`)
+				} else {
+					console.log(`[PCT] reopen: ${poll} — Check A: cookieStoreId empty`)
+				}
+			} catch (err) {
+				console.log(`[PCT] reopen: ${poll} — Check A: tabs.get threw (tab gone?):`, err)
+				checkAIsTC = false
 			}
 
-			if (currentTab.cookieStoreId) {
-				const isNowInTc = await this.tcLayer.isTempContainer(currentTab.cookieStoreId)
-				if (isNowInTc) {
-					const settings = await loadSettings(this.browserApi.storage.local)
-					if (!settings.suppressIsolationInfo) {
-						const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
-						await this.browserApi.tabs.create({ url: infoUrl, active: true })
+			// Check B — scan window for a TC tab with matching URL
+			let checkBIsTC = false
+			if (!checkAIsTC && url && windowId != null) {
+				console.log(`[PCT] reopen: ${poll} — Check B: scanning windowId=${windowId} for TC tabs with url=${url}`)
+				const allTabs = await this.browserApi.tabs.query({ windowId })
+				console.log(`[PCT] reopen: ${poll} — Check B: ${allTabs.length} tabs in window`)
+				for (const t of allTabs) {
+					if (t.id === newTab.id) continue
+					if (!t.cookieStoreId) continue
+					if (t.url !== url) continue;
+					const isTemp = await this.tcLayer.isTempContainer(t.cookieStoreId)
+					console.log(`[PCT] reopen: ${poll} — Check B: tab ${t.id} url=${t.url} cookieStoreId=${t.cookieStoreId} isTemp=${isTemp}`)
+					if (isTemp) {
+						console.log(`[PCT] reopen: ${poll} — Check B: found TC replacement tab ${t.id}`)
+						checkBIsTC = true
+						break
 					}
-					return
 				}
 			}
 
+			if (checkAIsTC || checkBIsTC) {
+				const settings = await loadSettings(this.browserApi.storage.local)
+				console.log(`[PCT] reopen: ${poll} — TC intercept confirmed (A=${checkAIsTC} B=${checkBIsTC}), suppressIsolationInfo=${settings.suppressIsolationInfo}`)
+				if (!settings.suppressIsolationInfo) {
+					const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
+					console.log('[PCT] reopen: opening isolation info page:', infoUrl)
+					await this.browserApi.tabs.create({ url: infoUrl, active: true })
+				}
+				return
+			}
+
+			console.log(`[PCT] reopen: ${poll} — no TC intercept found, waiting 200ms`)
 			await new Promise<void>(resolve => setTimeout(resolve, 200))
 		}
+
+		console.log('[PCT] reopen: TC intercept check exhausted 10 polls with no interception detected')
 	}
 }
