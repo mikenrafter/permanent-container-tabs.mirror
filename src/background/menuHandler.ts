@@ -103,20 +103,20 @@ export class MenuHandlerImpl implements MenuHandler {
 			})
 		}
 
-		// Permanent containers — icon replaces radio button when not current;
-		// radio indicator replaces the icon when current.
+		// Permanent containers — bundled SVG icon (icons/${icon}.svg#${color}) replaces
+		// radio button when not current; radio indicator replaces icon when current.
 		for (const container of permanentContainers) {
 			const isCurrent = tab.cookieStoreId === container.cookieStoreId
-			const iconUrl = container.iconUrl
+			const bundledIcon = `icons/${container.icon}.svg#${container.color}`
 			await this.browserApi.menus.create({
 				id: `${parentId}-${container.cookieStoreId}`,
 				parentId,
 				title: container.name,
-				type: isCurrent ? 'radio' : (iconUrl ? 'normal' : 'radio'),
+				type: isCurrent ? 'radio' : 'normal',
 				checked: isCurrent,
 				enabled: !isCurrent,
 				contexts: ['tab'],
-				...(isCurrent || !iconUrl ? {} : { icons: { 16: iconUrl } }),
+				...(isCurrent ? {} : { icons: { 16: bundledIcon } }),
 			})
 		}
 	}

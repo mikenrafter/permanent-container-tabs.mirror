@@ -223,10 +223,10 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect((personalItem![0] as { enabled?: boolean }).enabled).toBe(true)
 	})
 
-	it('non-current container with iconUrl uses type:normal with the icon', async () => {
+	it('non-current container uses type:normal with bundled SVG icon', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		const containerWithIcon = [
-			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue', iconUrl: 'resource://usercontext/briefcase.svg' },
+			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' },
 		]
 		await handler.buildMenus(tab, defaultSettings, containerWithIcon)
 
@@ -235,14 +235,14 @@ describe('MenuHandlerImpl.buildMenus', () => {
 			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-firefox-container-1`
 		)
 		expect((item![0] as { type?: string }).type).toBe('normal')
-		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'resource://usercontext/briefcase.svg' })
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/briefcase.svg#blue' })
 	})
 
 	it('current container uses type:radio and strips icon', async () => {
 		const tabInWork: Tab = { ...tab, cookieStoreId: 'firefox-container-1' }
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		const containerWithIcon = [
-			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue', iconUrl: 'resource://usercontext/briefcase.svg' },
+			{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' },
 		]
 		await handler.buildMenus(tabInWork, defaultSettings, containerWithIcon)
 
