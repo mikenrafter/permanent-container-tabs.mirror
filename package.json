@@ -1,0 +1,20 @@
+{
+  "name": "permanent-container-tabs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Permanent Container Tabs Firefox extension",
+  "scripts": {
+    "build": "esbuild src/background.ts src/info/isolation-info.ts src/preferences/options.ts --bundle --platform=browser --format=iife --target=firefox115 --outdir=src",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "package": "web-ext build --artifacts-dir dist && mv dist/*.zip dist/pct.xpi"
+  },
+  "devDependencies": {
+    "@types/firefox-webext-browser": "^120.0.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.4",
+    "web-ext": "^8.4.0"
+  }
+}

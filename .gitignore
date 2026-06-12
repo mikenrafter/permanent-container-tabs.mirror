@@ -1,0 +1,7 @@
+node_modules/
+dist/
+src/background.js
+src/preferences/options.js
+src/info/isolation-info.js
+*.xpi
+*.zip

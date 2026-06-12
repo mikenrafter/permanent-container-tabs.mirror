@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Redirected to Temporary Container</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 1rem; }
+    h1 { color: #333; font-size: 1.4rem; }
+    p { color: #555; line-height: 1.6; }
+    .links { margin: 1rem 0; }
+    .links a { display: block; color: #4a90d9; margin: 0.25rem 0; }
+    .buttons { margin-top: 1.5rem; display: flex; gap: 1rem; }
+    button { padding: 0.5rem 1.2rem; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; font-size: 1rem; }
+    #ok-btn { background: #4a90d9; color: white; border-color: #4a90d9; }
+    #never-show-btn { background: white; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Tab moved to a Temporary Container</h1>
+  <p>
+    The Temporary Containers extension's <strong>global isolation mode</strong> is active.
+    It automatically redirected this tab into a fresh Temporary Container to isolate it from other browsing.
+  </p>
+  <p>
+    This informational page was opened by <strong>Permanent Container Tabs</strong> to let you know what happened.
+  </p>
+  <div class="links">
+    <strong>Learn more about Temporary Containers:</strong>
+    <a href="https://github.com/stoically/temporary-containers" target="_blank">Temporary Containers (stoically)</a>
+    <a href="https://github.com/GodKratos/temporary-containers" target="_blank">Temporary Containers Plus (GodKratos)</a>
+  </div>
+  <div class="buttons">
+    <button id="ok-btn">OK</button>
+    <button id="never-show-btn">Never show again</button>
+  </div>
+  <script src="isolation-info.js"></script>
+</body>
+</html>

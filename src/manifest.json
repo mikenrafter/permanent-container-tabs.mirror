@@ -1,0 +1,34 @@
+{
+  "manifest_version": 2,
+  "name": "Permanent Container Tabs",
+  "version": "1.0.0",
+  "description": "Opens tabs in permanent (non-temporary) containers with right-click context menu.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "pct@permanentcontainertabs",
+      "strict_min_version": "115.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon.svg",
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "options_ui": {
+    "page": "preferences/options.html",
+    "open_in_tab": true
+  },
+  "permissions": [
+    "tabs",
+    "menus",
+    "contextMenus",
+    "contextualIdentities",
+    "cookies",
+    "storage",
+    "management",
+    "<all_urls>"
+  ]
+}

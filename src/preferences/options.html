@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Permanent Container Tabs — Settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 1rem; }
+    h1 { color: #333; font-size: 1.4rem; }
+    .setting { margin: 1rem 0; display: flex; align-items: flex-start; gap: 0.75rem; }
+    .setting input[type=checkbox] { margin-top: 0.2rem; width: 1rem; height: 1rem; }
+    .setting label { color: #333; }
+    .setting .description { color: #666; font-size: 0.875rem; margin-top: 0.2rem; }
+    .warning { color: #c0392b; font-size: 0.85rem; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <h1>Permanent Container Tabs Settings</h1>
+  <form id="settings-form">
+    <div class="setting">
+      <input type="checkbox" id="showOpenInNewTab" />
+      <div>
+        <label for="showOpenInNewTab">Show "Open in New Container Tab" menu item</label>
+        <div class="description">Adds a context menu item to open the tab's URL in a new tab in a chosen container.</div>
+      </div>
+    </div>
+
+    <div class="setting">
+      <input type="checkbox" id="showReopenInContainer" />
+      <div>
+        <label for="showReopenInContainer">Show "Reopen Tab in Container" menu item</label>
+        <div class="description">Adds a context menu item to reopen the current tab in a chosen container.</div>
+      </div>
+    </div>
+
+    <div class="setting">
+      <input type="checkbox" id="suppressMacMenuItem" />
+      <div>
+        <label for="suppressMacMenuItem">Suppress Multi-Account Containers menu item</label>
+        <div class="description">Hides MAC's built-in "Open in New Container Tab" menu item.</div>
+        <div class="warning">Warning: This will also hide all other extensions' tab context menus and Firefox's native tab menu items.</div>
+      </div>
+    </div>
+
+    <div class="setting">
+      <input type="checkbox" id="suppressIsolationInfo" />
+      <div>
+        <label for="suppressIsolationInfo">Never show TC isolation info page</label>
+        <div class="description">Suppress the informational page that opens when Temporary Containers redirects a tab.</div>
+      </div>
+    </div>
+  </form>
+  <script src="options.js"></script>
+</body>
+</html>
