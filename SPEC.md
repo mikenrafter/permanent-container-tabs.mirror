@@ -34,11 +34,11 @@ is active.
   1. Opens the URL in a **new active tab** in the chosen container at index = old tab index + 1.
   2. Closes the original tab.
   3. **TC intercept check** — skipped when the chosen container is Temporary Container or TC
-     is not present. After ~400 ms, reads the new tab via `tabs.get`. If the tab's
-     `cookieStoreId` is now a Temporary Container (TC's global-isolation mode intercepted the
-     navigation) and `suppressIsolationInfo` is `false`, opens `isolation-info.html` in a new
-     active tab. If `tabs.get` throws (TC closed our tab and replaced it), the check is skipped
-     silently.
+     is not present. Waits 500 ms, then polls every 200 ms for up to 2 s (10 polls). On each
+     poll, reads the new tab via `tabs.get`. If the tab's `cookieStoreId` is now a Temporary
+     Container (TC's global-isolation mode intercepted the navigation) and
+     `suppressIsolationInfo` is `false`, opens `isolation-info.html` in a new active tab and
+     stops polling. If `tabs.get` throws (TC closed our tab and replaced it), stops silently.
 - Controlled by **Setting S2** (`prioritizeReopen: true` → shows this menu instead of F1).
 
 ### F4 — TC Global-Isolation Info Page
@@ -142,10 +142,12 @@ current-tab case).
 1. Call TC API (if Temporary Container selected) or `browser.tabs.create({ url, cookieStoreId, index, active: true })`.
 2. Close the original tab via `browser.tabs.remove(oldTabId)`.
 3. **TC intercept check** (skipped for Temporary Container target or when TC is absent):
-   - `await new Promise(resolve => setTimeout(resolve, 400))`
-   - `const current = await browser.tabs.get(newTabId)` — if this throws, skip silently.
-   - `if (await tcLayer.isTempContainer(current.cookieStoreId))` — TC intercepted.
-   - If intercepted and `!suppressIsolationInfo`: `browser.tabs.create({ url: infoUrl, active: true })`.
+   - `await new Promise(resolve => setTimeout(resolve, 500))` — initial 500 ms delay.
+   - Loop up to 10 times (2 s polling window at 200 ms/poll):
+     - `const current = await browser.tabs.get(newTabId)` — if this throws, stop silently.
+     - `if (await tcLayer.isTempContainer(current.cookieStoreId))` — TC intercepted; if
+       `!suppressIsolationInfo`: `browser.tabs.create({ url: infoUrl, active: true })`; return.
+     - `await new Promise(resolve => setTimeout(resolve, 200))` — wait before next poll.
 
 ### TC Global Isolation Detection (F4)
 1. On `tabs.onUpdated` (with `changeInfo.cookieStoreId`), check if the new `cookieStoreId`
@@ -197,6 +199,8 @@ current-tab case).
 - Does NOT open info page when the new tab is in a permanent container (no TC intercept).
 - Handles `tabs.get` throwing gracefully (tab removed before check).
 - TC intercept check is skipped when the chosen container is `TEMP_CONTAINER_SENTINEL`.
+- Initial check fires at 500 ms, subsequent polls every 200 ms (up to 10 polls / 2 s).
+- Stops polling as soon as TC intercept is detected; does not poll further after detecting.
 
 ### `pctRuntime.test.ts`
 - `initialize()` calls `tcLayer.initialize()`, `menuHandler.initialize()`, and registers listeners.

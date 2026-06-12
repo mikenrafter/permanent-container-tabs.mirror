@@ -43,24 +43,29 @@ export class TabReopenerImpl implements TabReopener {
 		// TC intercept check — only when TC is present and we didn't deliberately open in TC
 		if (cookieStoreId === TEMP_CONTAINER_SENTINEL || !this.tcLayer.isPresent() || newTab.id == null) return
 
-		await new Promise(resolve => setTimeout(resolve, 400))
+		await new Promise<void>(resolve => setTimeout(resolve, 500))
 
-		let currentTab: Tab
-		try {
-			currentTab = await this.browserApi.tabs.get(newTab.id)
-		} catch {
-			// TC may have closed and replaced our tab
-			return
+		for (let i = 0; i < 10; i++) {
+			let currentTab: Tab
+			try {
+				currentTab = await this.browserApi.tabs.get(newTab.id)
+			} catch {
+				return
+			}
+
+			if (currentTab.cookieStoreId) {
+				const isNowInTc = await this.tcLayer.isTempContainer(currentTab.cookieStoreId)
+				if (isNowInTc) {
+					const settings = await loadSettings(this.browserApi.storage.local)
+					if (!settings.suppressIsolationInfo) {
+						const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
+						await this.browserApi.tabs.create({ url: infoUrl, active: true })
+					}
+					return
+				}
+			}
+
+			await new Promise<void>(resolve => setTimeout(resolve, 200))
 		}
-
-		if (!currentTab.cookieStoreId) return
-		const isNowInTc = await this.tcLayer.isTempContainer(currentTab.cookieStoreId)
-		if (!isNowInTc) return
-
-		const settings = await loadSettings(this.browserApi.storage.local)
-		if (settings.suppressIsolationInfo) return
-
-		const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
-		await this.browserApi.tabs.create({ url: infoUrl, active: true })
 	}
 }

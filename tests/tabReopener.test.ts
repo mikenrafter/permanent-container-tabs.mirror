@@ -250,23 +250,67 @@ describe('TabReopenerImpl.reopen — TC intercept check', () => {
 		expect(browserApi.tabs.get).not.toHaveBeenCalled()
 	})
 
-	it('intercept check fires after ~400ms (not before)', async () => {
+	it('initial check fires at 500ms, not before', async () => {
 		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
-		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(true)
-		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-			id: 99, index: 1, cookieStoreId: 'firefox-tmp-42',
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(false)
+
+		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
+
+		await vi.advanceTimersByTimeAsync(499)
+		expect(browserApi.tabs.get).not.toHaveBeenCalled()
+
+		await vi.advanceTimersByTimeAsync(1)
+		expect(browserApi.tabs.get).toHaveBeenCalledWith(99)
+
+		await vi.runAllTimersAsync()
+		await promise
+	})
+
+	it('polls every 200ms and stops immediately on TC detection', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		let calls = 0
+		;(browserApi.tabs.get as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+			calls++
+			return { id: 99, index: 1, cookieStoreId: calls >= 3 ? 'firefox-tmp-1' : 'firefox-container-1' }
+		})
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockImplementation(
+			async (id: string) => id.startsWith('firefox-tmp')
+		)
+		;(browserApi.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+			suppressIsolationInfo: false,
 		})
 
 		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
 
-		// tabs.get should not be called before the delay
-		await vi.advanceTimersByTimeAsync(100)
-		expect(browserApi.tabs.get).not.toHaveBeenCalled()
+		await vi.advanceTimersByTimeAsync(500) // poll 1 — not TC
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(1)
 
-		// After 400ms it should have been called
-		await vi.advanceTimersByTimeAsync(400)
+		await vi.advanceTimersByTimeAsync(200) // poll 2 — not TC
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(2)
+
+		await vi.advanceTimersByTimeAsync(200) // poll 3 — TC detected, info shown, stop
 		await promise
-		expect(browserApi.tabs.get).toHaveBeenCalledWith(99)
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(3)
+
+		const infoCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls.find(
+			(args: unknown[]) => (args[0] as { url?: string }).url?.includes('isolation-info.html')
+		)
+		expect(infoCall).toBeDefined()
+	})
+
+	it('stops polling without showing info after exhausting 10 polls when no TC intercept', async () => {
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockResolvedValue(false)
+
+		const promise = reopener_reopen(browserApi, tcLayer, sourceTab, 'firefox-container-1')
+		await vi.runAllTimersAsync()
+		await promise
+
+		expect(browserApi.tabs.get).toHaveBeenCalledTimes(10)
+		const infoCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls.find(
+			(args: unknown[]) => (args[0] as { url?: string }).url?.includes('isolation-info.html')
+		)
+		expect(infoCall).toBeUndefined()
 	})
 })
 
