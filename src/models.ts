@@ -90,11 +90,11 @@ export interface MenusApi {
 }
 
 export interface TabsApi {
-	create(details: { cookieStoreId?: string; url?: string; index?: number; windowId?: number }): Promise<Tab>
+	create(details: { cookieStoreId?: string; url?: string; index?: number; windowId?: number; active?: boolean }): Promise<Tab>
 	remove(tabId: number): Promise<void>
 	get(tabId: number): Promise<Tab>
 	query(queryInfo: { windowId?: number; active?: boolean; currentWindow?: boolean }): Promise<Tab[]>
-	update(tabId: number, updateProperties: { url?: string }): Promise<Tab>
+	update(tabId: number, updateProperties: { url?: string; active?: boolean }): Promise<Tab>
 	onUpdated: {
 		addListener(listener: (id: number, changeInfo: TabChangeInfo, tab: Tab) => void | Promise<void>): void
 	}

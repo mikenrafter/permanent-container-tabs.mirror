@@ -16,36 +16,30 @@ is active.
 ### F1 — Context Menu: "Open in New Container Tab"
 - Appears on right-click of any browser tab (contexts: `["tab"]`).
 - Submenu lists all permanent (non-temporary) `contextualIdentities`.
-- Each item is a radio-button entry; the **current** container of the tab is pre-checked.
+- Each entry is a radio-button when it matches the current tab's container (`checked: true`,
+  `enabled: false`, no icon); otherwise `type: normal` with a bundled SVG icon.
 - Special entries always present at the top:
-  - **No Container** (`firefox-default`) — opens in default container.
-  - **Temporary Container** — only shown when TC/TC+ is installed; calls TC runtime API to
-    create an ephemeral container.
-- Clicking an entry opens a **new tab** in the chosen container at the same URL.
-- Menu icon: the extension's SVG icon (16 px).
-- Controlled by **Setting S1** (`showOpenInNewTab`, default `true`).
+  - **No Container** (`firefox-default`) — always `type: radio`; checked when the tab is in
+    no container.
+  - **Temporary Container** — only shown when TC/TC+ is installed; shown as radio + checked
+    when the current tab is itself in a temporary container; otherwise `type: normal` with the
+    bundled `temp-container.svg` icon.
+- Clicking an entry opens a **new tab** (active) in the chosen container at the same URL.
+- Controlled by **Setting S1** (`prioritizeReopen: false` → shows this menu).
 
 ### F2 — Context Menu: "Reopen Tab in Container"
 - Second top-level item in the tab context menu.
 - Same submenu structure as F1 (permanent containers + No Container + Temporary Container).
 - Clicking an entry:
-  1. Opens the URL in a new tab in the chosen container (index = old tab index + 1).
+  1. Opens the URL in a **new active tab** in the chosen container at index = old tab index + 1.
   2. Closes the original tab.
-  3. Cleans up any TC-created orphan `about:blank` tabs (poll × 6 @ 150 ms — mirrors CM
-     `cleanupOrphanedTabs`).
-- Controlled by **Setting S2** (`showReopenInContainer`, default `true`).
-
-### F3 — Suppress MAC "Open in New Container Tab"
-- When enabled, calls `browser.menus.overrideContext({ showDefaults: false })` from
-  `menus.onShown` to suppress the MAC extension's own "Open in New Container Tab" item.
-- Because `showDefaults: false` hides all browser-native tab-menu items as well, PCT
-  recreates the essential native entries: Pin/Unpin Tab, Mute/Unmute Tab, Duplicate Tab,
-  Select Tab, Move Tab, Reload Tab, Close Tab. (Best-effort; actual availability depends
-  on Firefox version.)
-- When F3 is **OFF** (default), the two PCT menu items have their labels suffixed with
-  `(PCT)` so users can distinguish them from MAC's identically-named item.
-- When F3 is **ON**, labels drop the suffix.
-- Controlled by **Setting S3** (`suppressMacMenuItem`, default `false`).
+  3. **TC intercept check** — skipped when the chosen container is Temporary Container or TC
+     is not present. After ~400 ms, reads the new tab via `tabs.get`. If the tab's
+     `cookieStoreId` is now a Temporary Container (TC's global-isolation mode intercepted the
+     navigation) and `suppressIsolationInfo` is `false`, opens `isolation-info.html` in a new
+     active tab. If `tabs.get` throws (TC closed our tab and replaced it), the check is skipped
+     silently.
+- Controlled by **Setting S2** (`prioritizeReopen: true` → shows this menu instead of F1).
 
 ### F4 — TC Global-Isolation Info Page
 - When TC/TC+ is installed with global-isolation mode enabled and a navigation lands the
@@ -68,9 +62,7 @@ is active.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `showOpenInNewTab` | boolean | `true` | Show "Open in New Container Tab (PCT)" menu |
-| `showReopenInContainer` | boolean | `true` | Show "Reopen Tab in Container" menu |
-| `suppressMacMenuItem` | boolean | `false` | Suppress MAC's own context-menu entry |
+| `prioritizeReopen` | boolean | `false` | `false` = show F1 (Open in New), `true` = show F2 (Reopen) |
 | `suppressIsolationInfo` | boolean | `false` | Never show TC isolation info page |
 
 Settings are stored via `browser.storage.local`.
@@ -87,9 +79,9 @@ src/
 ├── models.ts                 All TypeScript interfaces (BrowserApi, PctSettings, ContextualIdentity, …)
 ├── background/
 │   ├── pctRuntime.ts         Orchestrator — wires listeners, owns module instances
-│   ├── menuHandler.ts        Tab context menu: build, show, handle clicks (F1/F2/F3)
-│   ├── tabReopener.ts        "Reopen" action: open new tab, close old, TC orphan cleanup (F2)
-│   └── tcLayer.ts            TC/TC+ detection, isTempContainer, createTempContainer, orphan cleanup
+│   ├── menuHandler.ts        Tab context menu: build, show, handle clicks (F1/F2)
+│   ├── tabReopener.ts        "Reopen" action: open new tab, close old, TC intercept check (F2)
+│   └── tcLayer.ts            TC/TC+ detection, isTempContainer, createTempContainer
 ├── preferences/
 │   ├── options.html          Settings page UI
 │   ├── options.ts            Form binding / settings persistence
@@ -141,25 +133,19 @@ the submenu. Results are cached per `menus.onShown` event (one cache per menu op
 
 ### Current-Container Indicator (F1 / F2)
 When building the submenu for a right-clicked tab, PCT reads `tab.cookieStoreId` and marks
-the matching container entry as `checked: true` (radio semantics).
+the matching container entry as `checked: true` / `type: radio` / `enabled: false` with no
+icon. This applies to the No Container entry, all permanent container entries, and the
+Temporary Container entry (which calls `isTempContainer(tab.cookieStoreId)` to detect the
+current-tab case).
 
-### "Reopen Tab in Container" Robustness (F2)
-Mirrors CM's hotswap activation:
-1. Snapshot all current tab IDs in the window (`preTabIds`).
-2. Call TC API (if Temporary Container selected) or `browser.tabs.create({ url, cookieStoreId, index })`.
-3. Close the original tab via `browser.tabs.remove(oldTabId)`.
-4. Poll 6× at 150 ms for orphan TC-created `about:blank` tabs — any tab whose ID was not in
-   `preTabIds`, is in a temporary container, and has URL `about:blank` is closed.
-
-### Suppress MAC Menu (F3)
-From `menus.onShown`, when S3 is enabled:
-```typescript
-browser.menus.overrideContext({ showDefaults: false })
-```
-This hides all other extensions' tab context-menu items (including MAC) as well as Firefox's
-native items. PCT then creates its own entries plus best-effort native replacements. The toggle
-ships with a visible warning in the settings UI: "This will also hide all other extensions'
-tab context menus."
+### "Reopen Tab in Container" Flow (F2)
+1. Call TC API (if Temporary Container selected) or `browser.tabs.create({ url, cookieStoreId, index, active: true })`.
+2. Close the original tab via `browser.tabs.remove(oldTabId)`.
+3. **TC intercept check** (skipped for Temporary Container target or when TC is absent):
+   - `await new Promise(resolve => setTimeout(resolve, 400))`
+   - `const current = await browser.tabs.get(newTabId)` — if this throws, skip silently.
+   - `if (await tcLayer.isTempContainer(current.cookieStoreId))` — TC intercepted.
+   - If intercepted and `!suppressIsolationInfo`: `browser.tabs.create({ url: infoUrl, active: true })`.
 
 ### TC Global Isolation Detection (F4)
 1. On `tabs.onUpdated` (with `changeInfo.cookieStoreId`), check if the new `cookieStoreId`
@@ -174,7 +160,7 @@ tab context menus."
 ## Test Plan (TDD — write tests before implementation)
 
 ### `settings.test.ts`
-- `getDefaultSettings()` returns all four keys with correct defaults.
+- `getDefaultSettings()` returns both keys with correct defaults.
 - `validateSettings()` rejects non-boolean values.
 - `loadSettings()` merges stored partial with defaults (missing keys filled in).
 - `saveSettings()` calls `browser.storage.local.set` with correct payload.
@@ -185,30 +171,32 @@ tab context menus."
 - `isTempContainer()` returns `true` for a TC container, `false` for a permanent one.
 - `isTempContainer()` returns `false` when no TC extension is present (no crash).
 - `createTempContainer()` sends correct message to TC extension and returns new tab.
-- `cleanupOrphanedTabs()` removes TC-created blank tabs not in `preTabIds`, polls up to 6 times.
 
 ### `menuHandler.test.ts`
-- `onShown` with S1=true builds a top-level "Open in New Container Tab" item.
-- `onShown` with S2=true builds a top-level "Reopen Tab in Container" item.
-- `onShown` with S1=false omits the first item.
-- `onShown` with S2=false omits the second item.
+- `onShown` with `prioritizeReopen=false` builds "Open in New Container Tab" top-level item.
+- `onShown` with `prioritizeReopen=true` builds "Reopen Tab in Container" top-level item.
 - Submenu contains exactly `[No Container, (Temporary Container?), ...permanentContainers]`.
-- Temporary container entries are excluded from submenu.
-- Current tab's container is `checked: true` in the submenu.
+- Permanent temporary-container entries are excluded from submenu (filtered by caller).
+- Current tab's permanent container is `checked: true`, `type: radio`, no icon.
+- Current tab in No Container: No Container entry is checked.
+- Current tab in Temporary Container: TC entry is `type: radio`, `checked: true`, no icon.
+- Tab not in TC: TC entry is `type: normal` with `icons/temp-container.svg`.
 - `onClicked` for F1 item calls `browser.tabs.create` with correct `{url, cookieStoreId}`.
 - `onClicked` for F2 item calls `tabReopener.reopen`.
-- `onShown` with S3=true calls `browser.menus.overrideContext({ showDefaults: false })`.
-- `onShown` with S3=false does NOT call `overrideContext`.
-- Menu labels include `(PCT)` suffix when S3=false, drop suffix when S3=true.
 - `onHidden` clears per-cycle container cache.
 
 ### `tabReopener.test.ts`
-- `reopen(tab, NO_CONTAINER)` creates tab at `index+1`, closes original, does not call TC API.
-- `reopen(tab, TEMP_CONTAINER_SENTINEL)` calls TC `createTempContainer`, closes original.
-- `reopen(tab, permanentCookieStoreId)` creates tab with that `cookieStoreId`.
-- After reopen, `cleanupOrphanedTabs` is called.
-- `cleanupOrphanedTabs` removes tabs whose IDs were not in `preTabIds` and are in a temp container.
-- `cleanupOrphanedTabs` does not remove the newly-created permanent tab.
+- `reopen(tab, NO_CONTAINER)` creates tab at `index+1` with `active: true`, closes original.
+- `reopen(tab, TEMP_CONTAINER_SENTINEL)` calls TC `createTempContainer`, closes original;
+  skips the TC intercept check entirely.
+- `reopen(tab, permanentCookieStoreId)` creates tab with that `cookieStoreId` and `active: true`.
+- After ~400 ms: if new tab's `cookieStoreId` is a TC container, opens info page in a new
+  active tab (when `suppressIsolationInfo=false`).
+- Does NOT open info page when `suppressIsolationInfo=true`.
+- Does NOT open info page when TC is not present.
+- Does NOT open info page when the new tab is in a permanent container (no TC intercept).
+- Handles `tabs.get` throwing gracefully (tab removed before check).
+- TC intercept check is skipped when the chosen container is `TEMP_CONTAINER_SENTINEL`.
 
 ### `pctRuntime.test.ts`
 - `initialize()` calls `tcLayer.initialize()`, `menuHandler.initialize()`, and registers listeners.

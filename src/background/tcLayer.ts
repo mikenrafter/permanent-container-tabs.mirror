@@ -14,7 +14,6 @@ export interface TcLayer {
 	initialize(): Promise<void>
 	isTempContainer(cookieStoreId: string): Promise<boolean>
 	createTempContainer(url: string, index: number, windowId: number): Promise<Tab>
-	cleanupOrphanedTabs(windowId: number, preTabIds: ReadonlySet<number | undefined>): Promise<void>
 }
 
 export class TcLayerImpl implements TcLayer {
@@ -80,33 +79,6 @@ export class TcLayerImpl implements TcLayer {
 			windowId,
 		})
 		return tab as Tab
-	}
-
-	async cleanupOrphanedTabs(
-		windowId: number,
-		preTabIds: ReadonlySet<number | undefined>,
-	): Promise<void> {
-		this.debug('cleanupOrphanedTabs: pre-redirect tab IDs', [...preTabIds])
-
-		let iteration = 0
-		while (iteration++ < 6) {
-			await new Promise(resolve => setTimeout(resolve, 150))
-			try {
-				const tabs = await this.browserApi.tabs.query({ windowId })
-				for (const tab of tabs) {
-					if (preTabIds.has(tab.id)) continue
-					if (tab.id === undefined || !tab.cookieStoreId) continue
-
-					const isTemp = await this.isTempContainer(tab.cookieStoreId)
-					if (isTemp && tab.url === 'about:blank') {
-						this.debug('cleanupOrphanedTabs: removing TC orphan tab', tab.id, tab.cookieStoreId)
-						await this.browserApi.tabs.remove(tab.id)
-					}
-				}
-			} catch (error) {
-				this.debug('cleanupOrphanedTabs: error', error)
-			}
-		}
 	}
 
 	private debug(...args: unknown[]): void {

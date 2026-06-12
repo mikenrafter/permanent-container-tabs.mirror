@@ -1,5 +1,6 @@
 import type { BrowserApi, Tab } from '../models'
 import type { TcLayer } from './tcLayer'
+import { loadSettings } from '../preferences/settings'
 import { NO_CONTAINER, TEMP_CONTAINER_SENTINEL } from '../constants'
 
 export interface TabReopenerDeps {
@@ -25,46 +26,41 @@ export class TabReopenerImpl implements TabReopener {
 		const index = tab.index + 1
 		const windowId = tab.windowId
 
-		// Snapshot pre-existing tab IDs for orphan cleanup
-		let preTabIds: Set<number | undefined> | null = null
-		if (this.tcLayer.isPresent() && windowId != null) {
-			const existingTabs = await this.browserApi.tabs.query({ windowId })
-			preTabIds = new Set(existingTabs.map(t => t.id))
-		}
-
-		let newTabId: number | undefined
+		let newTab: Tab
 
 		if (cookieStoreId === TEMP_CONTAINER_SENTINEL) {
-			// Open in a fresh Temporary Container via TC API
-			const newTab = await this.tcLayer.createTempContainer(url ?? '', index, windowId ?? 0)
-			newTabId = newTab.id
-			// Close original tab
-			if (tab.id != null) {
-				await this.browserApi.tabs.remove(tab.id)
-			}
+			newTab = await this.tcLayer.createTempContainer(url ?? '', index, windowId ?? 0)
 		} else if (cookieStoreId === NO_CONTAINER) {
-			// Open in default container (no cookieStoreId)
-			const newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), index })
-			newTabId = newTab.id
-			if (tab.id != null) {
-				await this.browserApi.tabs.remove(tab.id)
-			}
+			newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), index, active: true })
 		} else {
-			// Open in a specific permanent container
-			const newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), cookieStoreId, index })
-			newTabId = newTab.id
-			if (tab.id != null) {
-				await this.browserApi.tabs.remove(tab.id)
-			}
+			newTab = await this.browserApi.tabs.create({ ...(url !== undefined ? { url } : {}), cookieStoreId, index, active: true })
 		}
 
-		// Cleanup orphaned TC tabs
-		if (this.tcLayer.isPresent() && preTabIds != null && windowId != null) {
-			// Include the newly created tab in preTabIds so it won't be cleaned up
-			if (newTabId != null) {
-				preTabIds.add(newTabId)
-			}
-			await this.tcLayer.cleanupOrphanedTabs(windowId, preTabIds)
+		if (tab.id != null) {
+			await this.browserApi.tabs.remove(tab.id)
 		}
+
+		// TC intercept check — only when TC is present and we didn't deliberately open in TC
+		if (cookieStoreId === TEMP_CONTAINER_SENTINEL || !this.tcLayer.isPresent() || newTab.id == null) return
+
+		await new Promise(resolve => setTimeout(resolve, 400))
+
+		let currentTab: Tab
+		try {
+			currentTab = await this.browserApi.tabs.get(newTab.id)
+		} catch {
+			// TC may have closed and replaced our tab
+			return
+		}
+
+		if (!currentTab.cookieStoreId) return
+		const isNowInTc = await this.tcLayer.isTempContainer(currentTab.cookieStoreId)
+		if (!isNowInTc) return
+
+		const settings = await loadSettings(this.browserApi.storage.local)
+		if (settings.suppressIsolationInfo) return
+
+		const infoUrl = this.browserApi.runtime.getURL('info/isolation-info.html')
+		await this.browserApi.tabs.create({ url: infoUrl, active: true })
 	}
 }
