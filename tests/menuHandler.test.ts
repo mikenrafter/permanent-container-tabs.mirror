@@ -114,27 +114,99 @@ describe('MenuHandlerImpl.buildMenus', () => {
 		expect(parentCall).toBeDefined()
 	})
 
-	it('with prioritizeReopen=false does NOT create the F2 parent item', async () => {
+	it('with prioritizeReopen=false creates MENU_REOPEN as first child of MENU_OPEN_NEW (alt behavior submenu)', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		await handler.buildMenus(tab, defaultSettings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		const parentCall = createCalls.find((args: unknown[]) =>
+		const altSubmenu = createCalls.find((args: unknown[]) =>
 			(args[0] as { id?: string }).id === MENU_REOPEN
 		)
-		expect(parentCall).toBeUndefined()
+		expect(altSubmenu).toBeDefined()
+		expect((altSubmenu![0] as { parentId?: string }).parentId).toBe(MENU_OPEN_NEW)
+
+		const primaryChildren = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_OPEN_NEW
+		)
+		expect((primaryChildren[0]![0] as { id?: string }).id).toBe(MENU_REOPEN)
 	})
 
-	it('with prioritizeReopen=true does NOT create the F1 parent item', async () => {
+	it('with prioritizeReopen=true creates MENU_OPEN_NEW as first child of MENU_REOPEN (alt behavior submenu)', async () => {
 		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
 		const settings = { ...defaultSettings, prioritizeReopen: true }
 		await handler.buildMenus(tab, settings, containers)
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
-		const parentCall = createCalls.find((args: unknown[]) =>
+		const altSubmenu = createCalls.find((args: unknown[]) =>
 			(args[0] as { id?: string }).id === MENU_OPEN_NEW
 		)
-		expect(parentCall).toBeUndefined()
+		expect(altSubmenu).toBeDefined()
+		expect((altSubmenu![0] as { parentId?: string }).parentId).toBe(MENU_REOPEN)
+
+		const primaryChildren = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_REOPEN
+		)
+		expect((primaryChildren[0]![0] as { id?: string }).id).toBe(MENU_OPEN_NEW)
+	})
+
+	it('separator appears before permanent containers in primary submenu', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const primaryChildren = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_OPEN_NEW
+		)
+		const separatorIdx = primaryChildren.findIndex((args: unknown[]) =>
+			(args[0] as { type?: string }).type === 'separator'
+		)
+		const container1Idx = primaryChildren.findIndex((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_OPEN_NEW}-firefox-container-1`
+		)
+		expect(separatorIdx).toBeGreaterThan(-1)
+		expect(separatorIdx).toBeLessThan(container1Idx)
+	})
+
+	it('alt behavior submenu contains a No Container entry', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const altNoContainer = createCalls.find((args: unknown[]) => {
+			const d = args[0] as { id?: string; parentId?: string }
+			return d.id === `${MENU_REOPEN}-${NO_CONTAINER}` && d.parentId === MENU_REOPEN
+		})
+		expect(altNoContainer).toBeDefined()
+	})
+
+	it('alt behavior submenu contains permanent container entries', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const altWork = createCalls.find((args: unknown[]) => {
+			const d = args[0] as { id?: string; parentId?: string }
+			return d.id === `${MENU_REOPEN}-firefox-container-1` && d.parentId === MENU_REOPEN
+		})
+		expect(altWork).toBeDefined()
+	})
+
+	it('alt behavior submenu has a separator before permanent containers', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildMenus(tab, defaultSettings, containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const altChildren = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_REOPEN
+		)
+		const separatorIdx = altChildren.findIndex((args: unknown[]) =>
+			(args[0] as { type?: string }).type === 'separator'
+		)
+		const container1Idx = altChildren.findIndex((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_REOPEN}-firefox-container-1`
+		)
+		expect(separatorIdx).toBeGreaterThan(-1)
+		expect(separatorIdx).toBeLessThan(container1Idx)
 	})
 
 	it('submenu includes "No Container" entry', async () => {
@@ -180,8 +252,12 @@ describe('MenuHandlerImpl.buildMenus', () => {
 
 		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
 		const containerItems = createCalls.filter((args: unknown[]) => {
-			const detail = args[0] as { id?: string; parentId?: string }
-			return detail.parentId === MENU_OPEN_NEW && detail.id !== `${MENU_OPEN_NEW}-${NO_CONTAINER}` && detail.id !== `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+			const detail = args[0] as { id?: string; parentId?: string; type?: string }
+			return detail.parentId === MENU_OPEN_NEW
+				&& detail.id !== `${MENU_OPEN_NEW}-${NO_CONTAINER}`
+				&& detail.id !== `${MENU_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+				&& detail.id !== MENU_REOPEN
+				&& detail.type !== 'separator'
 		})
 		expect(containerItems).toHaveLength(1)
 		expect((containerItems[0]![0] as { id?: string }).id).toBe(`${MENU_OPEN_NEW}-firefox-container-1`)

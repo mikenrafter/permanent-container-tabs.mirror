@@ -44,27 +44,45 @@ export class MenuHandlerImpl implements MenuHandler {
 		await this.browserApi.menus.removeAll()
 
 		if (settings.prioritizeReopen) {
-			await this.buildContainerSubmenu(MENU_REOPEN, 'Reopen Tab in Container', tab, permanentContainers)
+			await this.buildPrimarySubmenu(MENU_REOPEN, 'Reopen Tab in Container', MENU_OPEN_NEW, 'Open in New Container Tab', tab, permanentContainers)
 		} else {
-			await this.buildContainerSubmenu(MENU_OPEN_NEW, 'Open in New Container Tab', tab, permanentContainers)
+			await this.buildPrimarySubmenu(MENU_OPEN_NEW, 'Open in New Container Tab', MENU_REOPEN, 'Reopen Tab in Container', tab, permanentContainers)
 		}
 
 		await this.browserApi.menus.refresh()
 	}
 
-	private async buildContainerSubmenu(
-		parentId: string,
-		title: string,
+	private async buildPrimarySubmenu(
+		primaryId: string,
+		primaryTitle: string,
+		altId: string,
+		altTitle: string,
 		tab: Tab,
 		permanentContainers: ContextualIdentity[],
 	): Promise<void> {
-		// Create parent item
 		await this.browserApi.menus.create({
-			id: parentId,
-			title,
+			id: primaryId,
+			title: primaryTitle,
 			contexts: ['tab'],
 		})
 
+		// Alt behavior submenu — first child of primary
+		await this.browserApi.menus.create({
+			id: altId,
+			parentId: primaryId,
+			title: altTitle,
+			contexts: ['tab'],
+		})
+		await this.buildContainerItems(altId, tab, permanentContainers)
+
+		await this.buildContainerItems(primaryId, tab, permanentContainers)
+	}
+
+	private async buildContainerItems(
+		parentId: string,
+		tab: Tab,
+		permanentContainers: ContextualIdentity[],
+	): Promise<void> {
 		// No Container — no icon, always radio
 		const noContainerIsCurrent = tab.cookieStoreId === NO_CONTAINER || !tab.cookieStoreId
 		await this.browserApi.menus.create({
@@ -89,6 +107,16 @@ export class MenuHandlerImpl implements MenuHandler {
 				enabled: !tabIsInTc,
 				contexts: ['tab'],
 				...(tabIsInTc ? {} : { icons: { 16: 'icons/temp-container.svg' } }),
+			})
+		}
+
+		// Separator before permanent containers
+		if (permanentContainers.length > 0) {
+			await this.browserApi.menus.create({
+				id: `${parentId}-separator`,
+				parentId,
+				type: 'separator',
+				contexts: ['tab'],
 			})
 		}
 
