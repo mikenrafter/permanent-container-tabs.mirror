@@ -35,8 +35,13 @@ export class PctRuntimeImpl implements PctRuntime {
 		await this.menuHandler.initialize()
 
 		this.browserApi.menus.onShown.addListener((info, tab) => {
-			if (!info.contexts.includes('tab')) return
-			this.handleMenuShown(tab).catch(console.error)
+			if (info.contexts.includes('tab')) {
+				this.handleMenuShown(tab).catch(console.error)
+			} else if (info.contexts.includes('link')) {
+				this.handleMenuShownForLink().catch(console.error)
+			} else if (info.contexts.includes('bookmark')) {
+				this.handleMenuShownForBookmark().catch(console.error)
+			}
 		})
 
 		// Register menus.onHidden
@@ -56,15 +61,30 @@ export class PctRuntimeImpl implements PctRuntime {
 		})
 	}
 
-	private async handleMenuShown(tab: Tab): Promise<void> {
-		const settings = await loadSettings(this.browserApi.storage.local)
+	private async getPermanentContainers(): Promise<ContextualIdentity[]> {
 		const allContainers = await this.browserApi.contextualIdentities.query({})
 		const permanentContainers: ContextualIdentity[] = []
 		for (const c of allContainers) {
 			const isTemp = await this.tcLayer.isTempContainer(c.cookieStoreId)
 			if (!isTemp) permanentContainers.push(c)
 		}
+		return permanentContainers
+	}
+
+	private async handleMenuShown(tab: Tab): Promise<void> {
+		const settings = await loadSettings(this.browserApi.storage.local)
+		const permanentContainers = await this.getPermanentContainers()
 		await this.menuHandler.buildMenus(tab, settings, permanentContainers)
+	}
+
+	private async handleMenuShownForLink(): Promise<void> {
+		const permanentContainers = await this.getPermanentContainers()
+		await this.menuHandler.buildLinkMenus(permanentContainers)
+	}
+
+	private async handleMenuShownForBookmark(): Promise<void> {
+		const permanentContainers = await this.getPermanentContainers()
+		await this.menuHandler.buildBookmarkMenus(permanentContainers)
 	}
 
 	private async handleTabUpdated(id: number, changeInfo: TabChangeInfo, tab: Tab): Promise<void> {

@@ -28,6 +28,8 @@ export interface Tab {
 export interface MenusOnClickInfo {
 	menuItemId: string
 	parentMenuItemId?: string
+	linkUrl?: string
+	bookmarkId?: string
 }
 
 export interface MenusOnShownInfo {
@@ -123,6 +125,16 @@ export interface StorageApi {
 	}
 }
 
+export interface BookmarkTreeNode {
+	id: string
+	url?: string
+	title: string
+}
+
+export interface BookmarksApi {
+	get(idOrIdList: string | string[]): Promise<BookmarkTreeNode[]>
+}
+
 export interface BrowserApi {
 	menus: MenusApi
 	tabs: TabsApi
@@ -130,6 +142,7 @@ export interface BrowserApi {
 	storage: StorageApi
 	runtime: RuntimeApi
 	management: ManagementApi
+	bookmarks: BookmarksApi
 }
 
 export interface LoggerLike {

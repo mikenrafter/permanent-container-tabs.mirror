@@ -40,6 +40,9 @@ function makeBrowserApi(): BrowserApi {
 		management: {
 			get: vi.fn().mockRejectedValue(new Error('not installed')),
 		},
+		bookmarks: {
+			get: vi.fn().mockResolvedValue([{ id: 'bm1', url: 'https://bookmark.example.com', title: 'Bookmark' }]),
+		},
 	}
 }
 
@@ -59,6 +62,8 @@ function makeMenuHandler(): MenuHandler {
 	return {
 		initialize: vi.fn().mockResolvedValue(undefined),
 		buildMenus: vi.fn().mockResolvedValue(undefined),
+		buildLinkMenus: vi.fn().mockResolvedValue(undefined),
+		buildBookmarkMenus: vi.fn().mockResolvedValue(undefined),
 		handleClick: vi.fn().mockResolvedValue(undefined),
 		handleHidden: vi.fn(),
 		markTabAsPctOpened: vi.fn(),
@@ -119,6 +124,128 @@ describe('PctRuntimeImpl.initialize', () => {
 	})
 
 })
+
+// ---------------------------------------------------------------------------
+// onShown context routing
+// ---------------------------------------------------------------------------
+
+describe('PctRuntimeImpl onShown context routing', () => {
+	let browserApi: BrowserApi
+
+	beforeEach(() => {
+		browserApi = makeBrowserApi()
+	})
+
+	async function setupAndGetOnShownListener(
+		menuHandler: MenuHandler,
+	): Promise<(info: { contexts: string[] }, tab: Tab) => void> {
+		const tcLayer = makeTcLayer()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		const addListenerCalls = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls
+		return addListenerCalls[0]?.[0] as (info: { contexts: string[] }, tab: Tab) => void
+	}
+
+	const stubTab: Tab = { id: 1, url: 'https://example.com', index: 0, cookieStoreId: 'firefox-default', windowId: 1 }
+
+	it('tab context calls menuHandler.buildMenus', async () => {
+		const menuHandler = makeMenuHandler()
+		const listener = await setupAndGetOnShownListener(menuHandler)
+
+		listener({ contexts: ['tab'] }, stubTab)
+		// allow microtasks to flush
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildMenus).toHaveBeenCalled()
+		expect(menuHandler.buildLinkMenus).not.toHaveBeenCalled()
+		expect(menuHandler.buildBookmarkMenus).not.toHaveBeenCalled()
+	})
+
+	it('link context calls menuHandler.buildLinkMenus', async () => {
+		const menuHandler = makeMenuHandler()
+		const listener = await setupAndGetOnShownListener(menuHandler)
+
+		listener({ contexts: ['link'] }, stubTab)
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildLinkMenus).toHaveBeenCalled()
+		expect(menuHandler.buildMenus).not.toHaveBeenCalled()
+		expect(menuHandler.buildBookmarkMenus).not.toHaveBeenCalled()
+	})
+
+	it('bookmark context calls menuHandler.buildBookmarkMenus', async () => {
+		const menuHandler = makeMenuHandler()
+		const listener = await setupAndGetOnShownListener(menuHandler)
+
+		listener({ contexts: ['bookmark'] }, stubTab)
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildBookmarkMenus).toHaveBeenCalled()
+		expect(menuHandler.buildMenus).not.toHaveBeenCalled()
+		expect(menuHandler.buildLinkMenus).not.toHaveBeenCalled()
+	})
+
+	it('unrecognised context calls none of the build methods', async () => {
+		const menuHandler = makeMenuHandler()
+		const listener = await setupAndGetOnShownListener(menuHandler)
+
+		listener({ contexts: ['page'] }, stubTab)
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildMenus).not.toHaveBeenCalled()
+		expect(menuHandler.buildLinkMenus).not.toHaveBeenCalled()
+		expect(menuHandler.buildBookmarkMenus).not.toHaveBeenCalled()
+	})
+
+	it('link context passes filtered permanent containers to buildLinkMenus', async () => {
+		const permanentContainer = { name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' }
+		const tempContainer = { name: 'Tmp-1', cookieStoreId: 'firefox-tmp-1', icon: 'circle', color: 'red' }
+		;(browserApi.contextualIdentities.query as ReturnType<typeof vi.fn>).mockResolvedValue([permanentContainer, tempContainer])
+
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockImplementation((id: string) =>
+			Promise.resolve(id === 'firefox-tmp-1')
+		)
+		const menuHandler = makeMenuHandler()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		const listener = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+			(info: { contexts: string[] }, tab: Tab) => void
+
+		listener({ contexts: ['link'] }, stubTab)
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildLinkMenus).toHaveBeenCalledWith([permanentContainer])
+	})
+
+	it('bookmark context passes filtered permanent containers to buildBookmarkMenus', async () => {
+		const permanentContainer = { name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' }
+		const tempContainer = { name: 'Tmp-1', cookieStoreId: 'firefox-tmp-1', icon: 'circle', color: 'red' }
+		;(browserApi.contextualIdentities.query as ReturnType<typeof vi.fn>).mockResolvedValue([permanentContainer, tempContainer])
+
+		const tcLayer = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		;(tcLayer.isTempContainer as ReturnType<typeof vi.fn>).mockImplementation((id: string) =>
+			Promise.resolve(id === 'firefox-tmp-1')
+		)
+		const menuHandler = makeMenuHandler()
+		const runtime = new PctRuntimeImpl({ browserApi, tcLayer, menuHandler })
+		await runtime.initialize()
+
+		const listener = (browserApi.menus.onShown.addListener as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+			(info: { contexts: string[] }, tab: Tab) => void
+
+		listener({ contexts: ['bookmark'] }, stubTab)
+		await new Promise(resolve => setTimeout(resolve, 0))
+
+		expect(menuHandler.buildBookmarkMenus).toHaveBeenCalledWith([permanentContainer])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// tabs.onUpdated isolation info (existing)
+// ---------------------------------------------------------------------------
 
 describe('PctRuntimeImpl tabs.onUpdated isolation info', () => {
 	let browserApi: BrowserApi

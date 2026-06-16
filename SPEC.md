@@ -41,6 +41,25 @@ is active.
      stops polling. If `tabs.get` throws (TC closed our tab and replaced it), stops silently.
 - Controlled by **Setting S2** (`prioritizeReopen: true` → shows this menu instead of F1).
 
+### F3 — Context Menu: "Open in New Container Tab" (link & bookmark contexts)
+- Appears on right-click of a **link** in the page (`contexts: ['link']`), titled
+  **"Open Link in New Container Tab"**.
+- Appears on right-click of a **bookmark or bookmark folder** in the bookmarks toolbar
+  or sidebar (`contexts: ['bookmark']`), titled **"Open Bookmark in New Container Tab"**.
+- Submenu lists permanent (non-temporary) containers with a flat structure — no radio or
+  checked indicators, since these actions always open a new tab:
+  - **No Container** (`type: normal`, no icon).
+  - **Temporary Container** — only shown when TC/TC+ is installed (`type: normal`, with
+    bundled `temp-container.svg` icon).
+  - Separator (when any permanent containers exist).
+  - Permanent containers (`type: normal`, with bundled SVG icon).
+- Clicking opens a **new active tab** at `tab.index + 1` in the chosen container with the
+  link's URL (link context) or the bookmark's URL (bookmark context).
+- Bookmark folders (no URL) are silently ignored when clicked.
+- Requires the `bookmarks` manifest permission to resolve bookmark URLs via
+  `browser.bookmarks.get(bookmarkId)`.
+- No "Reopen" submenu — only the tab context supports reopening.
+
 ### F4 — TC Global-Isolation Info Page
 - When TC/TC+ is installed with global-isolation mode enabled and a navigation lands the
   tab in a Temporary Container (detected via `tabs.onUpdated` + `isTempContainer` check),
@@ -65,6 +84,8 @@ is active.
 | `prioritizeReopen` | boolean | `false` | `false` = show F1 (Open in New), `true` = show F2 (Reopen) |
 | `suppressIsolationInfo` | boolean | `false` | Never show TC isolation info page |
 
+`bookmarks` permission is required for F3 (bookmark context URL lookup).
+
 Settings are stored via `browser.storage.local`.
 
 ---
@@ -75,7 +96,8 @@ Settings are stored via `browser.storage.local`.
 src/
 ├── manifest.json             MV2, gecko id: pct@permanentcontainertabs
 ├── background.ts             Entry point — constructs and initialises PctRuntime
-├── constants.ts              TEMP_CONTAINERS_EXTENSION_IDS, NO_CONTAINER, TEMP_CONTAINER_SENTINEL, etc.
+├── constants.ts              TEMP_CONTAINERS_EXTENSION_IDS, NO_CONTAINER, TEMP_CONTAINER_SENTINEL,
+│                             MENU_OPEN_NEW, MENU_REOPEN, MENU_LINK_OPEN_NEW, MENU_BOOKMARK_OPEN_NEW
 ├── models.ts                 All TypeScript interfaces (BrowserApi, PctSettings, ContextualIdentity, …)
 ├── background/
 │   ├── pctRuntime.ts         Orchestrator — wires listeners, owns module instances
@@ -114,12 +136,14 @@ icons/
     "cookies",
     "storage",
     "management",
+    "bookmarks",
     "<all_urls>"
   ]
 }
 ```
 
 `management` is required to probe TC/TC+ extension IDs via `browser.management.get()`.
+`bookmarks` is required to resolve bookmark URLs via `browser.bookmarks.get()` in F3.
 `<all_urls>` is required to open the info page via `tabs.update`.
 
 ---
@@ -192,6 +216,16 @@ current-tab case).
 - `onClicked` for F1 item calls `browser.tabs.create` with correct `{url, cookieStoreId}`.
 - `onClicked` for F2 item calls `tabReopener.reopen`.
 - `onHidden` clears per-cycle container cache.
+- `buildLinkMenus` creates `MENU_LINK_OPEN_NEW` top-level item with `contexts: ['link']`.
+- `buildLinkMenus` submenu: No Container (`type: normal`), Temporary Container if TC
+  present (`type: normal`, icon), separator, permanent containers (`type: normal`, icon).
+- No radio/checked/enabled attributes on any link-context item.
+- `buildBookmarkMenus` creates `MENU_BOOKMARK_OPEN_NEW` with `contexts: ['bookmark']` and
+  same flat submenu structure as link context.
+- `onClicked` for link item opens `info.linkUrl` in the chosen container at `tab.index + 1`.
+- `onClicked` for bookmark item calls `bookmarks.get(bookmarkId)` and opens resolved URL.
+- Bookmark folder (no URL): click is silently ignored, no tab created.
+- Missing `bookmarkId` or `bookmarks.get` throwing: click silently ignored.
 
 ### `tabReopener.test.ts`
 - `reopen(tab, NO_CONTAINER)` creates tab at `index+1` with `active: true`, closes original.
@@ -214,6 +248,11 @@ current-tab case).
 
 ### `pctRuntime.test.ts`
 - `initialize()` calls `tcLayer.initialize()`, `menuHandler.initialize()`, and registers listeners.
+- `menus.onShown` with `tab` context calls `menuHandler.buildMenus`.
+- `menus.onShown` with `link` context calls `menuHandler.buildLinkMenus` (not `buildMenus`).
+- `menus.onShown` with `bookmark` context calls `menuHandler.buildBookmarkMenus` (not `buildMenus`).
+- `menus.onShown` with unrecognised context (e.g. `page`) calls none of the build methods.
+- Link and bookmark contexts pass only permanent (non-TC) containers to their build methods.
 - `tabs.onUpdated` with `cookieStoreId` change fires isolation-info logic when appropriate.
 - `tabs.onUpdated` does NOT open info page if `suppressIsolationInfo=true`.
 - `tabs.onUpdated` does NOT open info page for PCT-opened tabs.

@@ -3,7 +3,7 @@ import { MenuHandlerImpl } from '../src/background/menuHandler'
 import type { BrowserApi, Tab } from '../src/models'
 import type { TcLayer } from '../src/background/tcLayer'
 import type { TabReopener } from '../src/background/tabReopener'
-import { MENU_OPEN_NEW, MENU_REOPEN, NO_CONTAINER, TEMP_CONTAINER_SENTINEL } from '../src/constants'
+import { MENU_BOOKMARK_OPEN_NEW, MENU_LINK_OPEN_NEW, MENU_OPEN_NEW, MENU_REOPEN, NO_CONTAINER, TEMP_CONTAINER_SENTINEL } from '../src/constants'
 
 function makeBrowserApi(): BrowserApi {
 	return {
@@ -40,6 +40,9 @@ function makeBrowserApi(): BrowserApi {
 		},
 		management: {
 			get: vi.fn().mockRejectedValue(new Error('not installed')),
+		},
+		bookmarks: {
+			get: vi.fn().mockResolvedValue([{ id: 'bm1', url: 'https://bookmark.example.com', title: 'Bookmark' }]),
 		},
 	}
 }
@@ -79,6 +82,10 @@ const containers = [
 	{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' },
 	{ name: 'Personal', cookieStoreId: 'firefox-container-2', icon: 'fingerprint', color: 'green' },
 ]
+
+// ---------------------------------------------------------------------------
+// Tab context menu (existing F1/F2 behaviour)
+// ---------------------------------------------------------------------------
 
 describe('MenuHandlerImpl.buildMenus', () => {
 	let browserApi: BrowserApi
@@ -367,6 +374,231 @@ describe('MenuHandlerImpl.buildMenus', () => {
 	})
 })
 
+// ---------------------------------------------------------------------------
+// Link context menu (F3)
+// ---------------------------------------------------------------------------
+
+describe('MenuHandlerImpl.buildLinkMenus', () => {
+	let browserApi: BrowserApi
+	let tcLayer: TcLayer
+	let tabReopener: TabReopener
+
+	beforeEach(() => {
+		browserApi = makeBrowserApi()
+		tcLayer = makeTcLayer()
+		tabReopener = makeTabReopener()
+	})
+
+	it('creates MENU_LINK_OPEN_NEW top-level item with contexts:link', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const topLevel = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === MENU_LINK_OPEN_NEW
+		)
+		expect(topLevel).toBeDefined()
+		expect((topLevel![0] as { contexts?: string[] }).contexts).toContain('link')
+	})
+
+	it('submenu contains No Container entry as type:normal', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-${NO_CONTAINER}`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+	})
+
+	it('No Container entry has no radio/checked state', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-${NO_CONTAINER}`
+		)
+		expect((item![0] as { checked?: unknown }).checked).toBeUndefined()
+		expect((item![0] as { enabled?: unknown }).enabled).toBeUndefined()
+	})
+
+	it('shows Temporary Container when TC is present (type:normal with icon)', async () => {
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/temp-container.svg' })
+	})
+
+	it('does not show Temporary Container when TC is absent', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+		)
+		expect(item).toBeUndefined()
+	})
+
+	it('separator appears before permanent containers', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const children = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_LINK_OPEN_NEW
+		)
+		const separatorIdx = children.findIndex((args: unknown[]) =>
+			(args[0] as { type?: string }).type === 'separator'
+		)
+		const container1Idx = children.findIndex((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-firefox-container-1`
+		)
+		expect(separatorIdx).toBeGreaterThan(-1)
+		expect(separatorIdx).toBeLessThan(container1Idx)
+	})
+
+	it('permanent containers use type:normal with bundled icon (no radio state)', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus([{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' }])
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_LINK_OPEN_NEW}-firefox-container-1`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/briefcase.svg#blue' })
+		expect((item![0] as { checked?: unknown }).checked).toBeUndefined()
+	})
+
+	it('no separator when there are no permanent containers', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus([])
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const separator = createCalls.find((args: unknown[]) =>
+			(args[0] as { type?: string }).type === 'separator'
+		)
+		expect(separator).toBeUndefined()
+	})
+
+	it('calls removeAll and refresh', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildLinkMenus(containers)
+
+		expect(browserApi.menus.removeAll).toHaveBeenCalled()
+		expect(browserApi.menus.refresh).toHaveBeenCalled()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Bookmark context menu (F3)
+// ---------------------------------------------------------------------------
+
+describe('MenuHandlerImpl.buildBookmarkMenus', () => {
+	let browserApi: BrowserApi
+	let tcLayer: TcLayer
+	let tabReopener: TabReopener
+
+	beforeEach(() => {
+		browserApi = makeBrowserApi()
+		tcLayer = makeTcLayer()
+		tabReopener = makeTabReopener()
+	})
+
+	it('creates MENU_BOOKMARK_OPEN_NEW top-level item with contexts:bookmark', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildBookmarkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const topLevel = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === MENU_BOOKMARK_OPEN_NEW
+		)
+		expect(topLevel).toBeDefined()
+		expect((topLevel![0] as { contexts?: string[] }).contexts).toContain('bookmark')
+	})
+
+	it('submenu contains No Container entry as type:normal', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildBookmarkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_BOOKMARK_OPEN_NEW}-${NO_CONTAINER}`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+	})
+
+	it('shows Temporary Container when TC is present (type:normal with icon)', async () => {
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
+		await handler.buildBookmarkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_BOOKMARK_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/temp-container.svg' })
+	})
+
+	it('permanent containers use type:normal with bundled icon', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildBookmarkMenus([{ name: 'Work', cookieStoreId: 'firefox-container-1', icon: 'briefcase', color: 'blue' }])
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const item = createCalls.find((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`
+		)
+		expect(item).toBeDefined()
+		expect((item![0] as { type?: string }).type).toBe('normal')
+		expect((item![0] as { icons?: Record<number, string> }).icons).toEqual({ 16: 'icons/briefcase.svg#blue' })
+	})
+
+	it('separator appears before permanent containers', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildBookmarkMenus(containers)
+
+		const createCalls = (browserApi.menus.create as ReturnType<typeof vi.fn>).mock.calls
+		const children = createCalls.filter((args: unknown[]) =>
+			(args[0] as { parentId?: string }).parentId === MENU_BOOKMARK_OPEN_NEW
+		)
+		const separatorIdx = children.findIndex((args: unknown[]) =>
+			(args[0] as { type?: string }).type === 'separator'
+		)
+		const container1Idx = children.findIndex((args: unknown[]) =>
+			(args[0] as { id?: string }).id === `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`
+		)
+		expect(separatorIdx).toBeGreaterThan(-1)
+		expect(separatorIdx).toBeLessThan(container1Idx)
+	})
+
+	it('calls removeAll and refresh', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		await handler.buildBookmarkMenus(containers)
+
+		expect(browserApi.menus.removeAll).toHaveBeenCalled()
+		expect(browserApi.menus.refresh).toHaveBeenCalled()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// handleClick — tab context (existing)
+// ---------------------------------------------------------------------------
+
 describe('MenuHandlerImpl.handleClick', () => {
 	let browserApi: BrowserApi
 	let tcLayer: TcLayer
@@ -405,6 +637,178 @@ describe('MenuHandlerImpl.handleClick', () => {
 		expect(tabReopener.reopen).toHaveBeenCalledWith(tab, 'firefox-container-1')
 	})
 })
+
+// ---------------------------------------------------------------------------
+// handleClick — link context (F3)
+// ---------------------------------------------------------------------------
+
+describe('MenuHandlerImpl.handleClick — link context', () => {
+	let browserApi: BrowserApi
+	let tcLayer: TcLayer
+	let tabReopener: TabReopener
+
+	beforeEach(() => {
+		browserApi = makeBrowserApi()
+		tcLayer = makeTcLayer()
+		tabReopener = makeTabReopener()
+	})
+
+	it('opens link URL in a permanent container', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_LINK_OPEN_NEW}-firefox-container-1`,
+			linkUrl: 'https://link.example.com',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(browserApi.tabs.create).toHaveBeenCalledWith(
+			expect.objectContaining({ url: 'https://link.example.com', cookieStoreId: 'firefox-container-1' })
+		)
+	})
+
+	it('opens link URL with no container when NO_CONTAINER selected', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_LINK_OPEN_NEW}-${NO_CONTAINER}`,
+			linkUrl: 'https://link.example.com',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		const createCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+		expect(createCall.url).toBe('https://link.example.com')
+		expect(createCall.cookieStoreId).toBeUndefined()
+	})
+
+	it('opens link URL in Temporary Container via TC API', async () => {
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_LINK_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`,
+			linkUrl: 'https://link.example.com',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(tcWithTC.createTempContainer).toHaveBeenCalledWith('https://link.example.com', tab.index + 1, tab.windowId)
+	})
+
+	it('opens at tab.index + 1', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_LINK_OPEN_NEW}-firefox-container-1`,
+			linkUrl: 'https://link.example.com',
+		}
+		const tabAtIndex5: Tab = { ...tab, index: 5 }
+		await handler.handleClick(clickInfo, tabAtIndex5)
+
+		expect(browserApi.tabs.create).toHaveBeenCalledWith(
+			expect.objectContaining({ index: 6 })
+		)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// handleClick — bookmark context (F3)
+// ---------------------------------------------------------------------------
+
+describe('MenuHandlerImpl.handleClick — bookmark context', () => {
+	let browserApi: BrowserApi
+	let tcLayer: TcLayer
+	let tabReopener: TabReopener
+
+	beforeEach(() => {
+		browserApi = makeBrowserApi()
+		tcLayer = makeTcLayer()
+		tabReopener = makeTabReopener()
+	})
+
+	it('looks up bookmark URL and opens in a permanent container', async () => {
+		;(browserApi.bookmarks.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 'bm1', url: 'https://bookmark.example.com', title: 'My Bookmark' },
+		])
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`,
+			bookmarkId: 'bm1',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(browserApi.bookmarks.get).toHaveBeenCalledWith('bm1')
+		expect(browserApi.tabs.create).toHaveBeenCalledWith(
+			expect.objectContaining({ url: 'https://bookmark.example.com', cookieStoreId: 'firefox-container-1' })
+		)
+	})
+
+	it('opens bookmark URL with no container when NO_CONTAINER selected', async () => {
+		;(browserApi.bookmarks.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 'bm1', url: 'https://bookmark.example.com', title: 'My Bookmark' },
+		])
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-${NO_CONTAINER}`,
+			bookmarkId: 'bm1',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		const createCall = (browserApi.tabs.create as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+		expect(createCall.url).toBe('https://bookmark.example.com')
+		expect(createCall.cookieStoreId).toBeUndefined()
+	})
+
+	it('opens bookmark URL in Temporary Container via TC API', async () => {
+		;(browserApi.bookmarks.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 'bm1', url: 'https://bookmark.example.com', title: 'My Bookmark' },
+		])
+		const tcWithTC = makeTcLayer('{c607c8df-14a7-4f28-894f-29e8722976af}')
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer: tcWithTC, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-${TEMP_CONTAINER_SENTINEL}`,
+			bookmarkId: 'bm1',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(tcWithTC.createTempContainer).toHaveBeenCalledWith('https://bookmark.example.com', tab.index + 1, tab.windowId)
+	})
+
+	it('silently skips when bookmark has no URL (folder)', async () => {
+		;(browserApi.bookmarks.get as ReturnType<typeof vi.fn>).mockResolvedValue([
+			{ id: 'folder1', title: 'My Folder' },
+		])
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`,
+			bookmarkId: 'folder1',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(browserApi.tabs.create).not.toHaveBeenCalled()
+	})
+
+	it('silently skips when bookmarkId is missing', async () => {
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`,
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(browserApi.tabs.create).not.toHaveBeenCalled()
+	})
+
+	it('silently skips when bookmarks.get throws', async () => {
+		;(browserApi.bookmarks.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not found'))
+		const handler = new MenuHandlerImpl({ browserApi, tcLayer, tabReopener })
+		const clickInfo = {
+			menuItemId: `${MENU_BOOKMARK_OPEN_NEW}-firefox-container-1`,
+			bookmarkId: 'missing',
+		}
+		await handler.handleClick(clickInfo, tab)
+
+		expect(browserApi.tabs.create).not.toHaveBeenCalled()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// handleHidden
+// ---------------------------------------------------------------------------
 
 describe('MenuHandlerImpl.handleHidden', () => {
 	it('clears per-cycle container cache', async () => {

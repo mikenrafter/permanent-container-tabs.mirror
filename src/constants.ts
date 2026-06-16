@@ -16,4 +16,6 @@ export const TEMP_CONTAINERS_EXTENSION_IDS = [
 /** Menu item ID prefixes */
 export const MENU_OPEN_NEW = 'pct-open-new'
 export const MENU_REOPEN = 'pct-reopen'
+export const MENU_LINK_OPEN_NEW = 'pct-link-open-new'
+export const MENU_BOOKMARK_OPEN_NEW = 'pct-bookmark-open-new'
 
