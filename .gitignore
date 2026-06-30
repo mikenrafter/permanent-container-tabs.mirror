@@ -5,3 +5,4 @@ src/preferences/options.js
 src/info/isolation-info.js
 *.xpi
 *.zip
+.niri-workspace.yaml
