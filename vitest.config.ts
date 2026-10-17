@@ -7,6 +7,8 @@ export default defineConfig({
 	test: {
 		environment: 'node',
 		include: ['tests/**/*.test.ts'],
+		// Live tests drive a real Firefox; run them with `npm run test:live`.
+		exclude: ['tests/live/**', 'node_modules/**'],
 		environmentOptions: {
 			jsdom: {
 				resources: 'usable',

@@ -19,6 +19,7 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue({ id: 99, index: 0 }),
 			remove: vi.fn().mockResolvedValue(undefined),
 			get: vi.fn(),
+			move: vi.fn().mockResolvedValue({ id: 99, index: 1 }),
 			query: vi.fn().mockResolvedValue([]),
 			update: vi.fn().mockResolvedValue({ id: 99, index: 0 }),
 			onUpdated: { addListener: vi.fn() },
@@ -55,7 +56,6 @@ function makeTcLayer(extensionId: string | null = null, iconUrl: string | null =
 		initialize: vi.fn().mockResolvedValue(undefined),
 		isTempContainer: vi.fn().mockResolvedValue(false),
 		createTempContainer: vi.fn().mockResolvedValue({ id: 50, index: 1 }),
-		cleanupOrphanedTabs: vi.fn().mockResolvedValue(undefined),
 	}
 }
 

@@ -16,6 +16,7 @@ function makeBrowserApi(): BrowserApi {
 			create: vi.fn().mockResolvedValue({ id: 99, index: 0 }),
 			remove: vi.fn().mockResolvedValue(undefined),
 			get: vi.fn(),
+			move: vi.fn().mockResolvedValue({ id: 99, index: 1 }),
 			query: vi.fn().mockResolvedValue([]),
 			update: vi.fn().mockResolvedValue({ id: 99, index: 0 }),
 			onUpdated: { addListener: vi.fn() },
@@ -37,6 +38,9 @@ function makeBrowserApi(): BrowserApi {
 		},
 		management: {
 			get: vi.fn().mockRejectedValue(new Error('not installed')),
+		},
+		bookmarks: {
+			get: vi.fn().mockResolvedValue([]),
 		},
 	}
 }

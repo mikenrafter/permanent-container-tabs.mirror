@@ -6,3 +6,5 @@ src/info/isolation-info.js
 *.xpi
 *.zip
 .niri-workspace.yaml
+# Linked by `nix develop` (see flake.nix).
+.firefox-addon-live

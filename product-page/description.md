@@ -3,7 +3,7 @@ Permanent Container Tabs adds a Reopen Tab in Container action: trivially reopen
 If you have [Temporary Containers](https://addons.mozilla.org/en-US/firefox/addon/temporary-containers/) installed, only your permanent containers are displayed.
 
 
-What Permanent Container Tabs adds to the right-click menu:
+What Permanent Container Tabs adds to the right-click menu: (see the screenshots above, or the [repository](https://gitlab.com/mikenrafter/permanent-container-tabs/-/blob/main/README.md) for GIFs)
 
 - Reopen Tab in Container — closes the current tab and opens a new one at the same URL in your chosen container
 - Open in New Container Tab — available on link and bookmark right-clicks; opens the target directly in a container without disturbing the current tab

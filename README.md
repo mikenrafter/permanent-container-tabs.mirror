@@ -30,7 +30,7 @@ Works standalone, and integrates with both [*Temporary Containers*](https://addo
 
 Right-click any tab to get the **Reopen Tab in Container** submenu. It lists "No Container", "Temporary Container" (if Temporary Containers or Temporary Containers Plus is installed), and all of your permanent containers. Choosing a different entry closes the current tab and opens a new one at the same URL in the chosen container.
 
-![Reopen Tab in Container — tab bar right-click showing the container submenu](./product-page/screenshot-1-tab-reopen.png)
+![Reopen Tab in Container: right-click the tab, pick Work, and the tab comes back in Work](./product-page/usage-reopen.gif)
 
 </details>
 
@@ -39,7 +39,7 @@ Right-click any tab to get the **Reopen Tab in Container** submenu. It lists "No
 
 Right-click any in-page link or bookmark and choose **Open in New Container Tab**. The same container list appears, and the link opens in the chosen container without touching your current tab.
 
-![Open in New Container Tab — link right-click context menu](./product-page/screenshot-2-link-open.png)
+![Open Link in New Container Tab: right-click a link, pick Shopping, and it opens in a Shopping tab](./product-page/usage-link.gif)
 
 </details>
 
@@ -48,7 +48,7 @@ Right-click any in-page link or bookmark and choose **Open in New Container Tab*
 
 One action is always the top-level context menu item; the other sits in a nested alternate submenu just below it. You choose which is primary from the settings page.
 
-![Alternate action submenu](./product-page/screenshot-3-alternate-menu.png)
+![Alternate submenu: Reopen Tab in Container, then Open in New Container Tab, then Banking](./product-page/usage-alternate.gif)
 
 </details>
 
@@ -57,7 +57,7 @@ One action is always the top-level context menu item; the other sits in a nested
 
 The options page lets you swap which of **Open in New Container Tab** / **Reopen Tab in Container** is the top-level item, and lets you disable the Temporary Containers isolation notice.
 
-![Settings / options page](./product-page/screenshot-4-settings.png)
+![Settings page: switching the top-level action to Reopen](./product-page/usage-settings.gif)
 
 </details>
 
@@ -112,6 +112,24 @@ Other useful scripts:
 npm run typecheck   # tsc --noEmit
 npm test            # vitest run
 ```
+
+## Tests
+
+```bash
+nix develop -c npm test            # unit tests (Vitest, mocked browser APIs)
+nix develop -c npm run test:live   # real Firefox, driven over Marionette
+```
+
+The live tests start a throwaway Firefox (vanilla, from nixpkgs) on a private Xvfb display, load `src/` as a temporary add-on, and click real menus with `xdotool`. They check that Reopen Tab in Container moves the tab into the picked container, that the alternate submenu opens a copy and keeps the original, and that a link opens in the picked container. Pages are local fixtures, so no network is needed. The tests are in `tests/live/`; the harness is [firefox-addon-live](https://github.com/mikenrafter/firefox-addon-live), a flake input that `nix develop` links in as an npm dependency.
+
+## README screenshots and GIFs
+
+```bash
+nix develop -c npm run capture:readme                  # every scene
+nix develop -c npm run capture:readme -- reopen link   # only some scenes
+```
+
+This rebuilds the add-on, replays each usage scene in a live Firefox, and writes a PNG still and a GIF per scene to `product-page/` (640 px wide; the settings scene is taller so the whole page shows). Scenes are in `scripts/capture-readme-assets.ts`.
 
 ---
 
